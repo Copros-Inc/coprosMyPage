@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="submenu hidden bg-black/40">
                         <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="history.html" onclick="location.href='history.html'">実績登録</div>
                         <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="list_records.html" onclick="location.href='list_records.html'">実績一覧</div>
+                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="export.html" onclick="location.href='export.html'">実績CSV出力</div>
                     </div>
                 </div>
                 <div class="px-6 py-3 flex items-center gap-3 hover:bg-white/5 cursor-pointer item-link transition-colors border-l-4 border-transparent" data-page="calendar.html" onclick="location.href='calendar.html'">
