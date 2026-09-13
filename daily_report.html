@@ -108,7 +108,9 @@ async function init() {
                     <div class="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100">
                         <img src="${img.src}" class="w-full h-full object-cover">
                     </div>`).join('');
-            
+             // 🌟 親切設計：コメントをくれた人を宛先リストに自動追加
+                const commentators = (r.comments || []).map(c => c.sender);
+                const toOptions = [...new Set([r.visitorName, ...commentators])];
                 return `
                 <div class="accordion-item" id="acc-${i}">
                     <div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
@@ -167,10 +169,10 @@ async function init() {
                                 <div class="flex justify-between items-center gap-4">
                                     <div class="flex items-center gap-2 flex-1">
                                         <span class="text-[9px] font-black text-slate-400">宛先:</span>
-                                        <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
-                                            <option value="${r.visitorName}">${r.visitorName}</option>
-                                            <option value="全員">関係者全員</option>
-                                        </select>
+                                    <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
+                                        ${toOptions.map(name => `<option value="${name}">${name}</option>`).join('')}
+                                        <option value="全員">関係者全員</option>
+                                    </select>
                                     </div>
                                     <button onclick="if('${r.id}' === 'undefined'){ alert('データID異常です。一度カレンダーに戻り再読み込みしてください。'); return; } window.postComment('${r.id}', '${r.customerName}', ${i})"
                                     class="px-6 py-2 bg-[#004098] text-white rounded-xl text-[10px] font-black shadow-md active:scale-95 transition-all">送信</button>
