@@ -34,7 +34,7 @@
                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">User ID</label>
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400"><i class="fa-solid fa-user-gear"></i></span>
-                    <input type="text" id="userId" placeholder="社員番号を入力" class="w-full border border-gray-200 pl-11 p-4 rounded-xl outline-none font-black text-slate-700 bg-slate-50 focus:bg-white focus:border-[#ff7e11] transition-all" required>
+                    <input type="text" id="userId" inputmode="numeric" pattern="[0-9]*" placeholder="社員番号を入力" class="w-full border border-gray-200 pl-11 p-4 rounded-xl outline-none font-black text-slate-700 bg-slate-50 focus:bg-white focus:border-[#ff7e11] transition-all" required>
                 </div>
             </div>
             <div>
@@ -44,6 +44,10 @@
                     <input type="password" id="password" placeholder="パスワードを入力" class="w-full border border-gray-200 pl-11 p-4 rounded-xl outline-none font-black text-slate-700 bg-slate-50 focus:bg-white focus:border-[#ff7e11] transition-all" required>
                 </div>
             </div>
+            <div class="flex items-center gap-2 mt-2">
+                <input type="checkbox" id="rememberMe" class="w-4 h-4 accent-[#ff7e11] cursor-pointer">
+                <label for="rememberMe" class="text-[10px] font-black text-slate-400 cursor-pointer uppercase tracking-widest">ログイン情報を保存する</label>
+            </div>            
             <button type="submit" id="loginBtn" class="w-full bg-[#ff7e11] hover:bg-[#ff8e22] text-white py-4 rounded-xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3">
                 ログインを実行 <i class="fa-solid fa-right-to-bracket"></i>
             </button>
@@ -80,34 +84,66 @@
     const db = getFirestore(app);
 
     // 全社掲示板の読み込み
-    async function loadGeneralNotices() {
-        const container = document.getElementById('noticeContainer');
-        try {
-            const q = query(collection(db, "notices"), orderBy("startDate", "desc"), limit(5));
-            const snap = await getDocs(q);
-            const today = new Date().toISOString().split('T')[0];
-            
-            const active = snap.docs.filter(d => {
-                const data = d.data();
-                return today >= data.startDate && today <= data.endDate;
-            });
-
-            if (active.length > 0) {
-                container.classList.remove('justify-center');
-                container.innerHTML = active.map(d => `
-                    <div class="p-5 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                        <h4 class="text-sky-300 font-black text-sm mb-1">${d.data().title}</h4>
-                        <p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2">${d.data().content}</p>
-                    </div>`).join('');
-            } else {
-                container.innerHTML = '<div class="py-12 text-center"><p class="text-white/20 text-[10px] font-black uppercase tracking-widest">No Active Notices</p></div>';
-            }
-        } catch (e) { 
-            console.error(e);
-            container.innerHTML = '<p class="text-rose-400 text-center text-xs p-10 font-bold italic tracking-tighter">Sync Error: Connectivity Check Required</p>'; 
-        }
+async function loadGeneralNotices() {
+    const container = document.getElementById('noticeContainer');
+    const CACHE_KEY = 'cp_index_notices';
+    const CACHE_TIME = 'cp_index_notices_time';
+    
+    // 🌟 省エネ：キャッシュチェック（5分間有効）
+    const cached = localStorage.getItem(CACHE_KEY);
+    const lastFetch = localStorage.getItem(CACHE_TIME);
+    if (cached && lastFetch && (Date.now() - lastFetch < 300000)) {
+        renderNotices(JSON.parse(cached));
+        return;
     }
+
+    try {
+        // 🌟 爆速：orderByを外してインデックス未作成によるエラーを回避しつつ取得
+        const q = query(collection(db, "notices"), limit(10));
+        const snap = await getDocs(q);
+        const today = new Date().toISOString().split('T')[0];
+        
+        const active = snap.docs.map(d => d.data())
+            .filter(data => today >= data.startDate && today <= data.endDate)
+            .sort((a, b) => b.startDate.localeCompare(a.startDate)); // JS側でソート
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify(active));
+        localStorage.setItem(CACHE_TIME, Date.now().toString());
+        renderNotices(active);
+    } catch (e) { 
+        console.error("Notice Error:", e);
+        container.innerHTML = '<p class="text-white/20 text-center text-[10px] p-10 font-bold uppercase tracking-widest">Notice synchronization paused</p>'; 
+    }
+}
+
+function renderNotices(items) {
+    const container = document.getElementById('noticeContainer');
+    if (items.length > 0) {
+        container.classList.remove('justify-center');
+        container.innerHTML = items.map(data => `
+            <div class="p-5 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-default">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[8px] px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded font-black italic">NEW</span>
+                    <h4 class="text-sky-300 font-black text-sm">${data.title}</h4>
+                </div>
+                <p class="text-gray-400 text-[11px] leading-relaxed line-clamp-2">${data.content}</p>
+            </div>`).join('');
+    } else {
+        container.innerHTML = '<div class="py-12 text-center"><p class="text-white/20 text-[10px] font-black uppercase tracking-widest">No Active Notices</p></div>';
+    }
+}
     loadGeneralNotices();
+
+    // 🌟 爆速：保存されたログイン情報を復元
+window.addEventListener('load', () => {
+    const savedId = localStorage.getItem('cp_saved_id');
+    const savedPw = localStorage.getItem('cp_saved_pw');
+    if (savedId && savedPw) {
+        document.getElementById('userId').value = savedId;
+        document.getElementById('password').value = savedPw;
+        document.getElementById('rememberMe').checked = true;
+    }
+});
 
     // ログイン処理
     document.getElementById('loginForm').onsubmit = async (e) => {
@@ -152,7 +188,18 @@
                         
                         sessionStorage.setItem('userName', userData.name);
                         sessionStorage.setItem('userDept', userData.dept || '未設定');
-                        location.href = 'list.html';
+            // 🌟 親切：チェックが入っていれば情報を保存、なければ削除
+            const remember = document.getElementById('rememberMe').checked;
+            if (remember) {
+                localStorage.setItem('cp_saved_id', userId);
+                localStorage.setItem('cp_saved_pw', password);
+            } else {
+                localStorage.removeItem('cp_saved_id');
+                localStorage.removeItem('cp_saved_pw');
+            }
+
+            location.href = 'list.html';
+                        
                     }, 200);
 
                 } else { alert("パスワードが正しくありません。"); btn.disabled = false; btn.innerHTML = originalHTML; }
