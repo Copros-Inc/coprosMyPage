@@ -135,13 +135,19 @@
                 updatedAt: serverTimestamp()
             };
 
-            try {
+                        try {
                 if (editId) {
                     await updateDoc(doc(db, "notices", editId), data);
                 } else {
                     data.createdAt = serverTimestamp();
                     await addDoc(collection(db, "notices"), data);
                 }
+                
+                // 🌟 親切・爆速設計：ログイン画面のお知らせキャッシュをクリア
+                // これにより、次にログイン画面を開いた時に最新のお知らせが即座に反映されます
+                localStorage.removeItem('cp_index_notices');
+                localStorage.removeItem('cp_index_notices_time');
+
                 alert("お知らせを保存しました。");
                 location.href = 'notice_list.html';
             } catch (e) {
