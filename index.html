@@ -171,20 +171,20 @@ window.addEventListener('load', () => {
                     const snapNoti = await getDocs(qNoti);
                     const count = snapNoti.size;
 
-                    if (count > 0) {
-                        const container = document.getElementById('noticeContainer');
-                        container.innerHTML = `
-                            <div class="p-8 notification-flash text-center">
-                                <p class="text-orange-400 font-black text-lg mb-2"><i class="fa-solid fa-bell animate-bounce mr-2"></i>未読のお知らせ</p>
-                                <p class="text-white text-xs font-bold leading-relaxed">あなた宛に未読の活動回覧が<br><span class="text-xl mx-1">${count}</span>件届いています。</p>
-                            </div>
-                        `;
-                    }
+setTimeout(() => {
+    // 🌟 親切：通知の内訳（回覧・コメント）を分析
+    const allNoti = snapNoti.docs.map(d => d.data());
+    const kairanCount = allNoti.filter(n => n.type !== "コメント入電").length;
+    const commentCount = allNoti.filter(n => n.type === "コメント入電").length;
 
-                    setTimeout(() => {
-                        let msg = `${userData.name}さん、お疲れ様です！`;
-                        if (count > 0) msg += `\n\n📢 未読の回覧が ${count} 件あります。`;
-                        alert(msg);
+    let msg = `${userData.name}さん、お疲れ様です！`;
+    if (kairanCount > 0 || commentCount > 0) {
+        msg += `\n\n📢 未読の通知があります：`;
+        if (kairanCount > 0)  msg += `\n・回覧：${kairanCount}件`;
+        if (commentCount > 0) msg += `\n・コメント：${commentCount}件`;
+    }
+    
+    alert(msg);
                         
                         sessionStorage.setItem('userName', userData.name);
                         sessionStorage.setItem('userDept', userData.dept || '未設定');
