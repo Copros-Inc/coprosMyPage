@@ -133,6 +133,14 @@
                 const displayDate = n.visitDate || n.appointDate || "";
                 const dateFmt = displayDate ? String(displayDate).replace(/-/g,'/') : '日付不明';
                 const images = (r.attachments || []).map(f => f.base64 || f.url);
+                // 🌟 親切設計：訪問内容を短いアイコンラベルに変換
+                const typeLabels = {
+                    '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打',
+                    '施工': '施', '定期訪問': '定', '電話応対': '電',
+                    '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ',
+                    '差別化プレゼンチラシ': '差'
+                };
+                const shortType = typeLabels[r.activityType] || '営';
 
                 return `
                 <div class="accordion-item ${n.isRead ? '' : 'unread'}" id="item-${n.id}">
@@ -142,12 +150,16 @@
                             <span class="status-txt ${n.isRead ? 'status-read' : 'status-unread'}">${n.isRead ? '既読' : '未読'}</span>
                             <span class="badge ${n.type.includes('アポ') ? 'badge-apo' : 'badge-rec'}">${n.type.includes('アポ') ? 'アポ' : '実績'}</span>
                             <span class="text-sm font-mono font-black ${n.isRead ? 'text-slate-400' : 'text-orange-600'}">${dateFmt}</span>
-                            <span class="text-sm font-black text-slate-700 tracking-tight">${n.visitorName} ➔ ${n.customerName}</span>
+                            <span class="text-sm font-black text-slate-700 tracking-tight"><span class="text-[10px] opacity-40 mr-1">[${shortType}]</span>${n.visitorName} ➔ ${n.customerName}</span>
                         </div>
                         <i class="fa-solid fa-chevron-down opacity-20 text-xs transition-transform"></i>
                     </div>
                 <div class="accordion-content">
                     <div class="info-grid">
+                        <div>
+                           <p class="info-label">訪問内容</p>
+                           <p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p>
+                        </div>
                         <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || '--'}</p></div>
                         <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600">${r.startTime || '--:--'} 〜 ${r.endTime || '--:--'}</p></div>
                         <div>
