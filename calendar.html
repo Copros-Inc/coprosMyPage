@@ -182,17 +182,22 @@ watchNotifications((allUnreadList) => {
                            clean(n.visitorName) === clean(r.visitorName) && 
                            clean(n.customerName) === clean(r.customerName)
                         );
-                        const hasKairan = noticesForThisEvent?.some(n => n.type.includes("実績"));
+                        
                         const hasComment = noticesForThisEvent?.some(n => n.type.includes("コメント"));
+                        const hasKairan  = noticesForThisEvent?.some(n => n.type.includes("実績"));
 
-                        if (showUnread && !hasKairan && !hasComment) return;
+                        if (showUnread && !hasComment && !hasKairan) return;
 
                         let badge = "";
-                        if (hasComment) badge += `<span class="inline-block mr-1 animate-bounce text-[10px]">💬</span>`;
-                        else if (hasKairan) badge += `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 animate-pulse"></span>`;
+                        if (hasComment) {
+                            badge = `<span class="inline-block text-[10px] mr-1 animate-bounce">💬</span>`;
+                        } else if (hasKairan) {
+                            badge = `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"></span>`;
+                        }
 
                         evHtml += `<div class="event-item"><div class="event-label label-result" onclick="window.goUsage('${r.visitorName}', ${month+1}, '${r.customerName}', '${targetKey}')">${badge}${r.visitorName}: ${r.customerName}</div></div>`;
                         processedKeys.add(uKey);
+
                     });
                 }
                 if (document.getElementById('showNext').checked && !showUnread) {
@@ -205,10 +210,17 @@ watchNotifications((allUnreadList) => {
                 if (document.getElementById('showApp').checked && appMap[targetNum]) {
                     appMap[targetNum].forEach(a => {
                         if (selCleans.length > 0 && !selCleans.includes(clean(a.visitorName))) return;
-                       const hasNoti = notiMap[targetNum]?.some(n => clean(n.visitorName) === clean(a.visitorName) && clean(n.customerName) === clean(a.customerName) && n.type.includes("アポ"));
+                        
+                        // 🌟 アポの通知チェック
+                        const hasNoti = notiMap[targetNum]?.some(n => 
+                            clean(n.visitorName) === clean(a.visitorName) && 
+                            clean(n.customerName) === clean(a.customerName) && 
+                            (n.type.includes("アポ") || n.type.includes("回覧"))
+                        );
+                        
                         if (showUnread && !hasNoti) return;
-                        const badge = hasNoti ? `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 animate-pulse"></span>` : "";
-                        evHtml += `<div class="event-item"><div class="event-label label-appoint" onclick="window.handleAppoint('${a.id}','${a.customerName}','${a.appointDate}','${a.subject}')">${badge}${a.visitorName}: ${a.customerName}</div></div>`;
+                        const badge = hasNoti ? `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"></span>` : "";
+                        evHtml += `<div class="event-item"><div class="event-label label-appoint" onclick="window.handleAppoint('${a.id}', '${a.customerName}', '${targetKey}', '${a.subject}')">${badge}${a.visitorName}: ${a.customerName}</div></div>`;
                     });
                 }
                 grid.insertAdjacentHTML('beforeend', `<div class="calendar-day"><div class="day-header"><span class="day-num" onclick="window.goDailyReport('${targetKey}')">${d}</span><div class="add-btn" onclick="window.goAddHistory('${targetKey}')"><i class="fa-solid fa-plus"></i></div></div><div class="max-h-[110px] overflow-y-auto custom-scrollbar">${evHtml}</div></div>`);
