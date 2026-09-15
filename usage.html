@@ -207,6 +207,16 @@ async function loadRecords(name) {
             if (!filtered.length) { container.innerHTML = '<p class="text-center py-20 text-slate-300 font-bold uppercase">実績なし</p>'; return; }
 
             container.innerHTML = filtered.map((r, i) => {
+                // 🌟 親切設計：訪問内容を短いアイコンラベルに変換
+                const typeLabels = {
+                    '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打',
+                    '施工': '施', '定期訪問': '定', '電話応対': '電',
+                    '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ',
+                    '差別化プレゼンチラシ': '差'
+                };
+                const shortType = typeLabels[r.activityType] || '営';
+
+                const targetNum = dateToNum(r.visitDate);
             // 🌟 親切設計：コメントをくれた人を宛先リストに自動追加
                 const commentators = (r.comments || []).map(c => c.sender);
                 const toOptions = [...new Set([selectedName, ...commentators])];
@@ -219,6 +229,7 @@ return `
     <div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
         <div class="flex items-center gap-4 flex-wrap">
             <span class="text-xs font-black opacity-60 bg-white/10 px-3 py-1 rounded-full">${r.visitDate}</span>
+            <span class="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
             <span class="text-base font-black">${r.customerName}</span>
             <span id="badge-${i}" class="bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black" style="display:${isUnread ? 'inline' : 'none'}">未読</span>
         </div>
@@ -226,28 +237,44 @@ return `
     </div>
     <div class="accordion-content">
         <div class="info-grid">
+            <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || '--'}</p></div>
             <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600">${r.startTime} 〜 ${r.endTime}</p></div>
-            <div><p class="info-label">顧客情報</p><p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p></div>
             <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
+            <div class="col-span-2">
+                <p class="info-label">顧客情報</p>
+                <p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p>
+            </div>
         </div>
         
-        <p class="info-label mb-2 uppercase">■ お客様からの情報（要望・状況）</p>
+        <div class="mb-8">
+            <p class="info-label mb-2">定性データ分析</p>
+            <div class="flex flex-wrap gap-2">
+                ${r.qualData1 ? `<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-black border border-blue-100">${r.qualData1}</span>` : ''}
+                ${r.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-2 py-1 rounded text-[10px] font-black border border-orange-100">${r.qualData2}</span>` : ''}
+                ${r.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black border border-emerald-100">${r.qualData3}</span>` : ''}
+                ${r.qualFree ? `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black border border-slate-200">${r.qualFree}</span>` : ''}
+                ${!r.qualData1 && !r.qualData2 && !r.qualData3 && !r.qualFree ? '<span class="text-slate-300 text-[10px] font-bold italic">（未分類）</span>' : ''}
+            </div>
+        </div>       
+
+        <p class="info-label mb-2 uppercase tracking-widest">■ お客様からの情報（要望・状況）</p>
         <div class="report-box whitespace-pre-wrap">${r.content || r.customerReport || '報告なし'}</div>
         
-        <p class="info-label mb-2 uppercase">■ 自分・スタッフの考え（次回提案・課題）</p>
-        <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 text-slate-600 whitespace-pre-wrap">${r.staffThoughts || '未入力'}</div>
+        <p class="info-label mb-2 uppercase tracking-widest">■ 自分・スタッフの考え（次回提案・課題）</p>
+        <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 whitespace-pre-wrap">${r.staffThoughts || '未入力'}</div>
 
-        <div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
-            <div class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-black">
-                次回訪問予定：${r.nextVisitDate || '--/--/--'}
+        ${renderAttachments(r.attachments, i)}
+
+        <div class="flex justify-between items-center mt-8 pt-4 border-t border-slate-100 mb-6">
+            <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">
+                <i class="fa-regular fa-calendar-check mr-2"></i>次回訪問予定：${r.nextVisitDate || '--/--/--'}
             </div>
             <button id="toggle-btn-${i}" onclick="window.toggleReadStatus('${r.visitDate}', '${i}')" class="px-6 py-2 rounded-xl font-black text-[11px] transition-all shadow-sm ${isUnread ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}">
                 <i class="fa-solid ${isUnread ? 'fa-check-double' : 'fa-envelope'} mr-2"></i>${isUnread ? '既読にする' : '未読に戻す'}
             </button>
         </div>
 
-        <!-- 🌟 コメントエリア追加 -->
         <div class="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
             <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
@@ -266,19 +293,20 @@ return `
             <div class="space-y-3 text-left">
                 <textarea id="cmt-text-${i}" class="w-full p-3 text-xs font-bold rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-400 min-h-[80px]" placeholder="コメントを入力..."></textarea>
                 <div class="flex justify-between items-center gap-4">
-                    <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
-                        <!-- 🌟 動的な選択肢の生成 -->
-                        ${toOptions.map(name => `<option value="${name}">${name}</option>`).join('')}
-                        <option value="全員">関係者全員</option>
-                    </select>
+                    <div class="flex items-center gap-2 flex-1">
+                        <span class="text-[9px] font-black text-slate-400">宛先:</span>
+                        <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
+                            ${toOptions.map(name => `<option value="${name}">${name}</option>`).join('')}
+                            <option value="全員">関係者全員</option>
+                        </select>
+                    </div>
                     <button onclick="window.postComment('${r.id}', '${r.customerName}', ${i})" class="px-6 py-2 bg-[#004098] text-white rounded-xl text-[10px] font-black shadow-md active:scale-95 transition-all">送信</button>
                 </div>
             </div>
         </div>
-
-        ${renderAttachments(r.attachments, i)}
     </div>
 </div>`;
+
             }).join('');
 
             // 🌟 会社名も含めた精密なジャンプ
