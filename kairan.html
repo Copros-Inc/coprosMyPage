@@ -84,20 +84,26 @@
                 const recordDataMap = {};
                 await Promise.all(notices.map(async (n) => {
                     if (n.type.includes("アポ")) return;
+
+                    // 🌟 爆速・省エネ：複数のwhereを避け、シンプルに検索
+                    // visitDate がある場合はそれを利用し、JS側でフィルタリングする
                     const qr = query(
                         collection(db, "activity_records"), 
-                        where("visitorName", "==", n.visitorName),
                         where("customerName", "==", n.customerName),
-                        where("visitDate", "==", n.visitDate),
-                        limit(1)
+                        limit(20) // 少し多めに取ってJSで絞る
                     );
                     const rSnap = await getDocs(qr);
                     if (!rSnap.empty) {
-                        const rDoc = rSnap.docs[0];
-                        recordDataMap[n.id] = { recordId: rDoc.id, ...rDoc.data() };
+                        // 日付と訪問者が一致するものをJS側で探す（インデックス不要）
+                        const rDoc = rSnap.docs.find(d => 
+                            d.data().visitDate === n.visitDate && 
+                            d.data().visitorName === n.visitorName
+                        );
+                        if (rDoc) {
+                            recordDataMap[n.id] = { recordId: rDoc.id, ...rDoc.data() };
+                        }
                     }
                 }));
-
                 renderList(notices, recordDataMap);
                 const lastOpenedId = sessionStorage.getItem('cp_last_opened_kairan');
     if (lastOpenedId) {
