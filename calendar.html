@@ -183,7 +183,7 @@ watchNotifications((allUnreadList) => {
                            clean(n.customerName) === clean(r.customerName)
                         );
                         
-                        const hasComment = noticesForThisEvent?.some(n => n.type.includes("コメント"));
+                        const hasComment = noticesForThisEvent?.some(n => n.type === "コメント入電");
                         const hasKairan  = noticesForThisEvent?.some(n => n.type.includes("実績"));
 
                         if (showUnread && !hasComment && !hasKairan) return;
