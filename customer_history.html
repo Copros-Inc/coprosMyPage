@@ -426,7 +426,18 @@ function autoOpenFirst() {
                                 <div class="detail-content whitespace-pre-wrap text-slate-600">${data.staffThoughts || '-'}</div>
                             </div>
                         </div>
+                    <!-- 🌟 1. 添付画像（thumbs） -->
+                    ${renderAttachments(data.attachments, recordIdx)}
 
+                    <!-- 🌟 2. 次回訪問予定日（右寄せ青バッジ） -->
+                    <div class="mt-8 flex justify-end">
+                        <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-black shadow-md">
+                            <i class="fa-regular fa-calendar-check mr-2"></i>
+                            次回訪問予定日：${fmtDate(data.nextVisitDate)}
+                        </div>
+                    </div>
+
+                    <!-- 🌟 3. 指導・確認コメント（一番最後に配置） -->
                         <div class="mt-6 p-6 bg-slate-50 rounded-2xl border-2 border-blue-100/50 shadow-inner">
                             <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
@@ -460,15 +471,7 @@ function autoOpenFirst() {
                                 </div>
                             </div>
                         </div>                      
-                        ${renderAttachments(data.attachments, recordIdx)}
-                        <div class="mt-8 flex justify-end">
-                            <div class="bg-[#004098] text-white px-5 py-2 rounded-xl text-xs font-black shadow-md">
-                                <i class="fa-regular fa-calendar-check mr-2"></i>
-                                次回訪問予定日：${fmtDate(data.nextVisitDate)}
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
+                   </div>`;
             }).join('');
         }
 
