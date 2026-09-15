@@ -74,8 +74,24 @@
                             </div>
                             <div>
                                 <label class="label-text">訪問日時 <span class="text-rose-500">*</span></label>
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <input type="date" id="visitDate" class="form-input w-full sm:w-44" required>
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- 🌟 訪問内容を追加 -->
+                <div class="w-full sm:w-48">
+                    <select id="activityType" class="form-input font-black text-[#ff7e11]" required>
+                        <option value="">-- 訪問内容 --</option>
+                        <option value="営業">営業</option>
+                        <option value="リモート営業">リモート営業</option>
+                        <option value="打合せ(受注後)">打合せ(受注後)</option>
+                        <option value="施工">施工</option>
+                        <option value="定期訪問">定期訪問</option>
+                        <option value="電話応対">電話応対</option>
+                        <option value="来訪対応">来訪対応</option>
+                        <option value="業務日報">業務日報</option>
+                        <option value="メディア収集">メディア収集</option>
+                        <option value="差別化プレゼンチラシ">差別化プレゼンチラシ</option>
+                    </select>
+                </div>
+                             <input type="date" id="visitDate" class="form-input w-full sm:w-44" required>
                                     <div class="flex items-center bg-slate-50 rounded-xl border border-slate-200 px-2 w-full sm:w-auto">
                                         <input type="time" id="startTime" class="bg-transparent p-2 outline-none font-bold text-sm flex-1" required>
                                         <span class="text-slate-400 px-1">〜</span>
@@ -309,7 +325,24 @@
                 window.addReportBlock();
                 applyUrlParams();
             } catch (e) { console.error("init error:", e); }
+           
+            // 🌟 爆速・親切設計：開始時間を現在時刻、終了時間を15分後に自動セット
+            const startTimeEl = document.getElementById('startTime');
+            const endTimeEl   = document.getElementById('endTime');
+            if (startTimeEl && !startTimeEl.value) {
+                const now = new Date();
+                const hh = String(now.getHours()).padStart(2, '0');
+                const mm = String(now.getMinutes()).padStart(2, '0');
+                startTimeEl.value = `${hh}:${mm}`;
+
+                // 15分後を計算
+                now.setMinutes(now.getMinutes() + 15);
+                const ehh = String(now.getHours()).padStart(2, '0');
+                const emm = String(now.getMinutes()).padStart(2, '0');
+                endTimeEl.value = `${ehh}:${emm}`;
+            }
         }
+        
 
         // =========================================================
         // addReportBlock
@@ -608,8 +641,9 @@ document.getElementById('submitBtnTop').onclick = async () => {
                 customerName:      customer,
                 customerRank:      customerRank,
                 customerAttr:      customerAttr,
+                activityType:      document.getElementById('activityType').value, // 🌟 これを追加！
                 customerStaffName: staffName,
-                companion:         companion, // 🌟 これを追加！
+                companion:         companion, 
                 qualData1:         b.querySelector('.qual-data-1').value,
                 qualData2:         b.querySelector('.qual-data-2').value,
                 qualData3:         b.querySelector('.qual-data-3').value,
