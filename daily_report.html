@@ -163,12 +163,15 @@ async function init() {
                         <p class="info-label mb-2 tracking-widest uppercase">■ 自分・スタッフの考え（次回提案・課題）</p>
                         <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 whitespace-pre-wrap text-slate-600 mb-6">${r.staffThoughts || '未入力'}</div>
                         
-                        <div class="mt-4 flex justify-end">
+                        <!-- 1. まず添付画像を表示 -->
+                        ${thumbs ? `<div class="mt-6 flex flex-wrap gap-2 mb-6">${thumbs}</div>` : ''}
+
+                        <!-- 2. 次に次回訪問予定日を右寄せで表示 -->
+                        <div class="mt-4 flex justify-end mb-8">
                             <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">
                                 <i class="fa-regular fa-calendar-check mr-2"></i>次回訪問予定日：${r.nextVisitDate || '--/--/--'}
                             </div>
-                        </div>                      
-                        ${thumbs ? `<div class="mt-6 flex flex-wrap gap-2 mb-8">${thumbs}</div>` : ''}
+                        </div>
 
                         <!-- 4. コメントエリア（回覧一覧と完全同期） -->
                         <div class="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
