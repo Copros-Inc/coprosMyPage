@@ -133,53 +133,53 @@ async function init() {
                         <i class="fa-solid fa-chevron-down opacity-30 text-xs transition-transform"></i>
                     </div>
                     <div class="accordion-content">
-/* daily_report.html 136行目付近：info-grid を整理 */
-<div class="info-grid">
-    <!-- 1列目：メイン情報 -->
-    <div>
-        <p class="info-label">訪問内容</p>
-        <p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p>
-    </div>
-    <div>
-        <p class="info-label">お客様担当者</p>
-        <p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p>
-    </div>
+                        <!-- 🌟 整理された2カラムグリッド -->
+                        <div class="info-grid">
+                            <!-- 1列目：活動の基本 -->
+                            <div>
+                                <p class="info-label">訪問内容</p>
+                                <p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p>
+                            </div>
+                            <div>
+                                <p class="info-label">お客様担当者</p>
+                                <p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p>
+                            </div>
 
-    <!-- 2列目：時間と顧客詳細 -->
-    <div>
-        <p class="info-label">訪問時間</p>
-        <p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p>
-    </div>
-    <div>
-        <p class="info-label">顧客情報</p>
-        <p class="info-value">
-            <span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span>
-            <span class="text-orange-600">${r.customerAttr || '--'}</span>
-        </p>
-    </div>
+                            <!-- 2列目：時間と属性 -->
+                            <div>
+                                <p class="info-label">訪問時間</p>
+                                <p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p>
+                            </div>
+                            <div>
+                                <p class="info-label">顧客情報</p>
+                                <p class="info-value">
+                                    <span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span>
+                                    <span class="text-orange-600">${r.customerAttr || '--'}</span>
+                                </p>
+                            </div>
 
-    <!-- 3列目：所属と同行者 -->
-    <div>
-        <p class="info-label">所属部署</p>
-        <p class="info-value text-xs uppercase">${r.visitorDept || '-'}</p>
-    </div>
-    <div>
-        <p class="info-label">同行者</p>
-        <p class="info-value">${r.companion || 'なし'}</p>
-    </div>
-</div>
+                            <!-- 3列目：所属と同行者 -->
+                            <div>
+                                <p class="info-label">所属部署</p>
+                                <p class="info-value text-[11px] uppercase font-bold">${r.visitorDept || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="info-label">同行者</p>
+                                <p class="info-value">${r.companion || 'なし'}</p>
+                            </div>
+                        </div>
 
-<!-- 🌟 爆速・親切：定性データ分析は独立したエリアとして配置（回覧一覧スタイル） -->
-<div class="mb-6">
-    <p class="info-label mb-2">定性データ分析</p>
-    <div class="flex flex-wrap gap-2">
-        ${r.qualData1 ? `<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-black border border-blue-100">${r.qualData1}</span>` : ''}
-        ${r.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-2 py-1 rounded text-[10px] font-black border border-orange-100">${r.qualData2}</span>` : ''}
-        ${r.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black border border-emerald-100">${r.qualData3}</span>` : ''}
-        ${r.qualFree ? `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black border border-slate-200">${r.qualFree}</span>` : ''}
-        ${!r.qualData1 && !r.qualData2 && !r.qualData3 && !r.qualFree ? '<span class="text-slate-300 text-[10px] font-bold italic">（未分類）</span>' : ''}
-    </div>
-</div>
+                        <!-- 🌟 独立した定性データ分析エリア -->
+                        <div class="mb-6">
+                            <p class="info-label mb-2">定性データ分析</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${r.qualData1 ? `<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[10px] font-black border border-blue-100">${r.qualData1}</span>` : ''}
+                                ${r.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-2 py-1 rounded text-[10px] font-black border border-orange-100">${r.qualData2}</span>` : ''}
+                                ${r.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black border border-emerald-100">${r.qualData3}</span>` : ''}
+                                ${r.qualFree ? `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black border border-slate-200">${r.qualFree}</span>` : ''}
+                                ${!r.qualData1 && !r.qualData2 && !r.qualData3 && !r.qualFree ? '<span class="text-slate-300 text-[10px] font-bold italic">（未分類）</span>' : ''}
+                            </div>
+                        </div>
                         </div>
                         <p class="info-label mb-2 uppercase">■ お客様からの情報（要望・状況）</p>
                         <div class="report-box whitespace-pre-wrap text-slate-700">${r.content || r.customerReport || '報告なし'}</div>
