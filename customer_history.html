@@ -339,7 +339,15 @@ function autoOpenFirst() {
             recordImageMap = {};
             const container = document.getElementById('historyListContainer');
             container.innerHTML = dataList.map((data, recordIdx) => {
-                            // 🌟 親切設計：コメントをくれた人を宛先リストに自動追加
+                // 🌟 親切設計：訪問内容を短いアイコンラベルに変換
+            const typeLabels = {
+               '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打',
+               '施工': '施', '定期訪問': '定', '電話応対': '電',
+               '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ',
+               '差別化プレゼンチラシ': '差'
+            };
+           const shortType = typeLabels[data.activityType] || '営';
+                // 🌟 親切設計：コメントをくれた人を宛先リストに自動追加
                 const commentators = (data.comments || []).map(c => c.sender);
                 const toOptions = [...new Set([data.visitorName, ...commentators])];    
                 const attachments = data.attachments || [];
@@ -359,10 +367,9 @@ function autoOpenFirst() {
                 <div class="history-card">
                     <div class="history-header" onclick="window.toggleDetail(this)">
                         <div class="flex items-center gap-4 flex-wrap">
-                            <span class="text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">
-                                ${fmtDate(data.visitDate)}
-                            </span>
-                            <span class="text-sm font-black opacity-90">${data.visitorName || '担当者不明'}</span>
+                          <span class="text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">${fmtDate(data.visitDate)}</span>
+                          <span class="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
+                          <span class="text-sm font-black opacity-90">${data.visitorName || '担当者不明'}</span>
                             ${images.length > 0
                                 ? `<span class="bg-orange-400/20 text-orange-200 px-2 py-0.5 rounded-full text-[10px] font-black">
                                        <i class="fa-solid fa-image mr-1"></i>${images.length}枚
@@ -371,39 +378,44 @@ function autoOpenFirst() {
                         </div>
                         <i class="fa-solid fa-chevron-down transition-transform duration-300 arrow-icon opacity-40 text-xs ml-4 flex-shrink-0"></i>
                     </div>
-                    <div class="history-body">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-16 border-b border-slate-50 mb-6">
-                            <div class="detail-row">
-                                <div class="detail-label">お客様担当者</div>
-                                <div class="detail-content">${data.customerStaffName || '--'}</div>
-                            </div>
-                            <div class="detail-row">
-                                <div class="detail-label">訪問時間</div>
-                                <div class="detail-content text-blue-600">
-                                    <i class="fa-regular fa-clock mr-1"></i>
-                                    ${data.startTime || '00:00'} 〜 ${data.endTime || '00:00'}
-                                </div>
-                            </div>
-                            <div class="detail-row">
-                                <div class="detail-label">同行者</div>
-                                <div class="detail-content">${data.companion || 'なし'}</div>
-                            </div>
-                            <div class="detail-row">
-                                <div class="detail-label">所属部署</div>
-                                <div class="detail-content text-slate-400 text-xs uppercase">${data.visitorDept || '不明'}</div>
-                            </div>
-                        </div>
-                        <div class="mb-6">
-                            <p class="detail-label mb-3">定性データ分析</p>
-                            <div class="flex flex-wrap gap-2">
-                                ${data.qualData1 ? `<span class="bg-blue-50 text-[#004098] px-3 py-1 rounded-lg text-[10px] font-black border border-blue-100">${data.qualData1}</span>` : ''}
-                                ${data.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-3 py-1 rounded-lg text-[10px] font-black border border-orange-100">${data.qualData2}</span>` : ''}
-                                ${data.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-black border border-emerald-100">${data.qualData3}</span>` : ''}
-                                ${data.qualFree ? `<span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black border border-slate-200">${data.qualFree}</span>` : ''}
-                                ${!data.qualData1 && !data.qualData2 && !data.qualData3 && !data.qualFree
-                                    ? '<span class="text-slate-300 text-xs font-bold italic">（未分類）</span>' : ''}
-                            </div>
-                        </div>
+
+<div class="history-body">
+    <!-- 🌟 2カラムグリッドで整列 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-16 border-b border-slate-50 mb-6">
+        <div class="detail-row">
+            <div class="detail-label">訪問内容</div>
+            <div class="detail-content text-[#ff7e11] font-black">${data.activityType || '営業'}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">お客様担当者</div>
+            <div class="detail-content">${data.customerStaffName || '--'}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">訪問時間</div>
+            <div class="detail-content text-blue-600">
+                <i class="fa-regular fa-clock mr-1"></i> ${data.startTime || '00:00'} 〜 ${data.endTime || '00:00'}
+            </div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">同行者</div>
+            <div class="detail-content">${data.companion || 'なし'}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">所属部署</div>
+            <div class="detail-content text-slate-400 text-xs uppercase">${data.visitorDept || '不明'}</div>
+        </div>
+    </div>
+
+    <div class="mb-8">
+        <p class="detail-label mb-3">定性データ分析</p>
+        <div class="flex flex-wrap gap-2">
+            ${data.qualData1 ? `<span class="bg-blue-50 text-[#004098] px-3 py-1 rounded-lg text-[10px] font-black border border-blue-100">${data.qualData1}</span>` : ''}
+            ${data.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-3 py-1 rounded-lg text-[10px] font-black border border-orange-100">${data.qualData2}</span>` : ''}
+            ${data.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-black border border-emerald-100">${data.qualData3}</span>` : ''}
+            ${data.qualFree ? `<span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black border border-slate-200">${data.qualFree}</span>` : ''}
+            ${!data.qualData1 && !data.qualData2 && !data.qualData3 && !data.qualFree ? '<span class="text-slate-300 text-[10px] font-bold italic">（未分類）</span>' : ''}
+        </div>
+    </div>
                         <div class="space-y-6">
                             <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100">
                                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">■ お客様からの情報（要望・状況）</p>
