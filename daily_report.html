@@ -53,6 +53,10 @@
         import { db } from "./common.js";
         import { collection, getDocs, query, where, limit, doc, updateDoc, addDoc, serverTimestamp, arrayUnion } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        
+       const clean = (s) => (s || "").toString().replace(/\s+/g, '');
+       const dateToNum = (s) => (s || "").toString().replace(/[-/]/g, '');
+        
         const standardizeDate = (s) => {
             if(!s) return "";
             const d = s.replace(/\//g, '-').split('-');
