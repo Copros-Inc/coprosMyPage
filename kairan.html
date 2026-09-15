@@ -159,13 +159,12 @@
                         <i class="fa-solid fa-chevron-down opacity-50 text-xs transition-transform text-white"></i>
                     </div>
                 <div class="accordion-content">
-      <div class="flex justify-end mb-4">
-        ${n.isRead ? `
-            <button onclick="window.toggleReadStatus('${n.id}', true)" class="px-3 py-1.5 bg-slate-50 text-slate-400 rounded-lg font-black text-[9px] hover:bg-orange-50 hover:text-orange-500 transition-all border border-slate-100">
-                <i class="fa-solid fa-envelope mr-1"></i> 読み終わったけど後で再確認（未読に戻す）
-            </button>
-        ` : ''}
-    </div>              
+    <div class="flex justify-end mb-4">
+        <button onclick="window.toggleReadStatus('${n.id}', ${n.isRead})" class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${n.isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
+            <i class="fa-solid ${n.isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
+            <span>${n.isRead ? '未読に戻す' : '既読にする'}</span>
+        </button>
+    </div>         
                     <div class="info-grid">
                         <div>
                            <p class="info-label">訪問内容</p>
@@ -331,13 +330,9 @@
 
 window.toggleReadStatus = async (id, currentStatus) => {
     try {
-        const nextStatus = !currentStatus;
-        await updateDoc(doc(db, "notifications", id), { isRead: nextStatus });
-        
-        // 🌟 省エネ：カレンダーのバッジを復活させるためにキャッシュをクリア
+        await updateDoc(doc(db, "notifications", id), { isRead: !currentStatus });
         Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
-        
-        alert(nextStatus ? "未読に戻しました。カレンダーの通知ドットも復活します。" : "既読にしました");
+        // 🌟 ポップアップを消して即リロードすることで「爆速感」を演出
         location.reload();
     } catch (e) { console.error(e); }
 };
