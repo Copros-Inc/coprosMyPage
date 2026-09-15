@@ -13,7 +13,7 @@
         .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
         .info-label { font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 4px; }
         .info-value { font-size: 13px; font-weight: 800; color: #475569; }
-        .report-box { background: #f8fafc; border-radius: 1rem; padding: 1.5rem; border: 1px solid #f1f5f9; font-size: 13px; line-height: 1.7; margin-bottom: 1rem; }
+        .report-box { background: #f8fafc; border-radius: 1rem; padding: 1.5rem; border: 1px solid #f1f5f9; font-size: 13px; line-height: 1.7; margin-bottom: 1.5rem; }
         .summary-card { background: linear-gradient(135deg, #004098 0%, #2d3748 100%); color: white; border-radius: 1.5rem; padding: 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: center; gap: 6rem; box-shadow: 0 10px 25px -5px rgba(0,64,152,0.3); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -181,9 +181,9 @@ async function init() {
                             </div>
                         </div>
                         </div>
-                        <p class="info-label mb-2 uppercase">■ お客様からの情報（要望・状況）</p>
+                        <p class="info-label mb-2 tracking-widest uppercase">■ お客様からの情報（要望・状況）</p>
                         <div class="report-box whitespace-pre-wrap text-slate-700">${r.content || r.customerReport || '報告なし'}</div>
-                        <p class="info-label mb-2 uppercase">■ 自分・スタッフの考え（次回提案・課題）</p>
+                        <p class="info-label mb-2 tracking-widest uppercase">■ 自分・スタッフの考え（次回提案・課題）</p>
                         <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 whitespace-pre-wrap text-slate-600">${r.staffThoughts || '未入力'}</div>
                         <div class="mt-4 flex justify-end">
                             <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">
@@ -194,9 +194,10 @@ async function init() {
 
                         <!-- コメントエリア -->
                         <div class="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
-                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
-                            </p>
+                          <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
+                          </p>
+
                             <div class="space-y-3 mb-5">
                                 ${(r.comments || []).map(c => `
                                     <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left">
