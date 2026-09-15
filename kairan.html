@@ -185,7 +185,13 @@
                     
                     <p class="info-label mb-2 tracking-widest">■ 自分・スタッフの考え（次回提案・課題）</p>
                     <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 text-slate-600 mb-6 whitespace-pre-wrap">${r.staffThoughts || '未入力'}</div>
-                        ${images.length ? `<div class="flex flex-wrap gap-2 mb-8">${images.map(src => `<img src="${src}" class="w-20 h-20 object-cover rounded-xl border">`).join('')}</div>` : ''}
+                            ${images.length ? `<div class="flex flex-wrap gap-2 mb-6">${images.map(src => `<img src="${src}" class="w-20 h-20 object-cover rounded-xl border">`).join('')}</div>` : ''}
+
+                           <div class="mt-4 flex justify-end mb-6">
+                           <div class="bg-[#004098] text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">
+                              <i class="fa-regular fa-calendar-check mr-2"></i>次回訪問予定日：${r.nextVisitDate || '--/--/--'}
+                           </div>
+                       </div>
 
                         <!-- コメントエリア -->
                         <div class="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
