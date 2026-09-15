@@ -104,10 +104,20 @@ async function init() {
 
             container.innerHTML = dailyData.length ? dailyData.map((r, i) => {
                 const images = (r.attachments || []).map(f => ({ src: f.base64 || f.url, name: f.name }));
-                const thumbs = images.map(img => `
-                    <div class="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100">
-                        <img src="${img.src}" class="w-full h-full object-cover">
-                    </div>`).join('');
+                // 🌟 親切設計：訪問内容を短いアイコンラベルに変換
+                const typeLabels = {
+                    '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打',
+                    '施工': '施', '定期訪問': '定', '電話応対': '電',
+                    '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ',
+                    '差別化プレゼンチラシ': '差'
+                };
+                const shortType = typeLabels[r.activityType] || '営';
+                // 117行目付近の thumbs 生成部分
+               const thumbs = images.map(img => `
+                <div class="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100">
+                <img src="${img.src}" class="w-full h-full object-cover" loading="lazy"> <!-- 🌟 loading="lazy" を追加 -->
+                </div>`).join('');
+                
              // 🌟 親切設計：コメントをくれた人を宛先リストに自動追加
                 const commentators = (r.comments || []).map(c => c.sender);
                 const toOptions = [...new Set([r.visitorName, ...commentators])];
@@ -116,12 +126,19 @@ async function init() {
                     <div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
                         <div class="flex items-center gap-4">
                             <span class="bg-white/20 px-3 py-1 rounded text-[10px] font-black">${r.startTime || '--:--'}</span>
+                            <!-- 🌟 略称バッジを追加 -->
+                            <span class="text-[10px] font-black bg-white/10 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
                             <span class="text-base font-black tracking-tight">${r.visitorName} <i class="fa-solid fa-caret-right mx-2 opacity-50"></i> ${r.customerName}</span>
                         </div>
                         <i class="fa-solid fa-chevron-down opacity-30 text-xs transition-transform"></i>
                     </div>
                     <div class="accordion-content">
                         <div class="info-grid">
+                        　  <!-- 🌟 追加：訪問内容（正式名称） -->
+                            <div>
+                                <p class="info-label">訪問内容</p>
+                                <p class="info-value text-[#ff7e11]">${r.activityType || '営業'}</p>
+                            </div>
                             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
                             <div><p class="info-label">訪問時間</p><p class="info-value"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p></div>
                             <div><p class="info-label">所属部署</p><p class="info-value text-blue-600">${r.visitorDept || '-'}</p></div>
