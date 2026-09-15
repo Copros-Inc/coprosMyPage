@@ -195,9 +195,20 @@ watchNotifications((allUnreadList) => {
                             badge = `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"></span>`;
                         }
 
-                        evHtml += `<div class="event-item"><div class="event-label label-result" onclick="window.goUsage('${r.visitorName}', ${month+1}, '${r.customerName}', '${targetKey}')">${badge}${r.visitorName}: ${r.customerName}</div></div>`;
-                        processedKeys.add(uKey);
+    // 🌟 親切設計：訪問内容を短いアイコンラベルに変換
+    const typeLabels = {
+        '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打',
+        '施工': '施', '定期訪問': '定', '電話応対': '電',
+        '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ',
+        '差別化プレゼンチラシ': '差'
+    };
+    // activityType があれば変換、なければデフォルトで [営]
+    const shortType = typeLabels[r.activityType] || '営';
 
+    // 🌟 ラベル部分を [短縮名] 付きに書き換え
+    evHtml += `<div class="event-item"><div class="event-label label-result" onclick="window.goUsage('${r.visitorName}', ${month+1}, '${r.customerName}', '${targetKey}')">${badge}<span class="text-[8px] opacity-60 mr-1">[${shortType}]</span>${r.visitorName}: ${r.customerName}</div></div>`;
+    processedKeys.add(uKey);
+                        
                     });
                 }
                 if (document.getElementById('showNext').checked && !showUnread) {
