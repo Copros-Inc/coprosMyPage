@@ -134,26 +134,26 @@ async function init() {
                     </div>
 
                     <div class="accordion-content">
-
-    <div class="flex justify-end mb-4">
-        ${(function(){
-            const targetNum = standardizeDate(r.visitDate).replace(/-/g, '');
-            // 🌟 修正：allRecordsなどではなく、通知専用のキャッシュから探す
-            const notifications = JSON.parse(sessionStorage.getItem(cacheKey) || '{}').notifications || [];
-            const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
-            
-            if(!noti) return ''; 
-
-            const isRead = noti.isRead;
-            return `
-                <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" 
-                class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
-                    <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
-                    <span>${isRead ? '未読に戻す' : '既読にする'}</span>
-                </button>
-            `;
-        })()}
-    </div>                
+                        <div class="flex justify-end mb-4">
+                            ${(function(){
+                                const [y_sub, m_sub] = targetDate.split('-');
+                                const cacheKeySub = `cp_cal_cache_v_ultimate_${y_sub}_${m_sub.padStart(2, '0')}`;
+                                const targetNum = standardizeDate(r.visitDate).replace(/-/g, '');
+                                const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
+                                const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+                                
+                                if(!noti) return ''; 
+                                const isRead = noti.isRead;
+                                return `
+                                    <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" 
+                                    class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
+                                        <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
+                                        <span>${isRead ? '未読に戻す' : '既読にする'}</span>
+                                    </button>
+                                `;
+                            })()}
+                        </div>
+                        
                         <!-- 1. 2カラムの基本情報 -->
                         <div class="info-grid">
                             <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
