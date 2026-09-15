@@ -134,6 +134,21 @@ async function init() {
                     </div>
 
                     <div class="accordion-content">
+    <div class="flex justify-end mb-4">
+        ${(function(){
+            const targetNum = standardizeDate(r.visitDate).replace(/-/g, '');
+            const noti = (loadedData.notifications || []).find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+            if(!noti) return ''; 
+
+            const isRead = noti.isRead;
+            return `
+                <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
+                    <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
+                    <span>${isRead ? '未読に戻す' : '既読にする'}</span>
+                </button>
+            `;
+        })()}
+    </div>                    
                         <!-- 1. 2カラムの基本情報 -->
                         <div class="info-grid">
                             <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
@@ -303,7 +318,29 @@ function autoFocus() {
             content.style.display = open ? 'none' : 'block';
             item.querySelector('i').style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
         };
-
+window.toggleReadStatus = async (visitorName, customerName, date, currentStatus) => {
+    try {
+        const myName = sessionStorage.getItem('userName');
+        const targetDate = date.replace(/-/g, '/');
+        
+        // 🌟 爆速検索：自分宛の該当通知をピンポイントで探す
+        const q = query(collection(db, "notifications"), 
+                        where("recipient", "==", myName),
+                        where("visitorName", "==", visitorName),
+                        where("customerName", "==", customerName),
+                        where("visitDate", "==", targetDate),
+                        limit(1));
+        
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            // ステータスを反転
+            await updateDoc(snap.docs[0].ref, { isRead: !currentStatus });
+            // 🌟 省エネ：カレンダーキャッシュをクリアして戻った時にバッジを反映させる
+            Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
+            location.reload(); // 爆速リロード
+        }
+    } catch (e) { console.error("Toggle Error:", e); }
+};
         init();
     </script>
 </body>
