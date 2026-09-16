@@ -493,8 +493,6 @@ function autoOpenFirst() {
             }).join('');
         }
 
-import { arrayUnion, updateDoc, addDoc, serverTimestamp, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
 window.postComment = async (recordId, customerName) => {
     const text = document.getElementById(`cmt-text-${recordId}`).value.trim();
     const receiver = document.getElementById(`cmt-to-${recordId}`).value;
