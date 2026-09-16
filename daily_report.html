@@ -160,9 +160,9 @@ async function init() {
                                 const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
                                 if (!noti && !isMyRelated) return ''; 
                                 return `
-  　                               <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" 
-                                   class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}"
-                                        <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
+  　                              <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead}, false, 'acc-${i}')" 
+                                  class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
+                                       <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
                                         <span>${isRead ? '未読に戻す' : '既読にする'}</span>
                                    </button>
                                  `;
