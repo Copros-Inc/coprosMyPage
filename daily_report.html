@@ -67,6 +67,7 @@
         let allRecords = [], dailyData = []; 
 
 async function init() {
+    try {    
     const rawDate = sessionStorage.getItem('cp_daily_date');
     if (!rawDate) { location.href = 'calendar.html'; return; }
     
