@@ -156,20 +156,22 @@ async function init() {
                                 
                                 const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
                                 
-                                const isRead = noti ? noti.isRead : true;
-                                const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
-                                if (!noti && !isMyRelated) return ''; 
-                                return `
-  　                              <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead}, false, 'acc-${i}')" 
-                                  class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
-                                       <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
-                                        <span>${isRead ? '未読に戻す' : '既読にする'}</span>
-                                   </button>
-                                 `;
-                            })()}
-                        </div>
-                        
-                        <!-- 1. 2カラムの基本情報 -->
+const isRead = noti ? noti.isRead : true;
+const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
+if (!noti && !isMyRelated) return ''; 
+
+return `
+    <div class="flex justify-end mb-4">
+        ${isRead ? `
+            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead}, false, 'acc-${i}')"
+            class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                <i class="fa-solid fa-envelope"></i>
+                <span>未読に戻す</span>
+            </button>
+        ` : ''}
+    </div>
+`;
+                    <!-- 1. 2カラムの基本情報 -->
                         <div class="info-grid">
                             <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
                             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
@@ -335,15 +337,15 @@ window.toggleAcc = async (id, visitorName, customerName, date) => {
     const item = document.getElementById(id);
     const content = item.querySelector('.accordion-content');
     const open = content.style.display === 'block';
-    
     content.style.display = open ? 'none' : 'block';
-    item.querySelector('.fa-chevron-down').style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+    const chevron = item.querySelector('.fa-chevron-down');
+    if(chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
 
-    // 🌟 開いた時かつ未読バッジがある場合、自動で既読にする
-    const badge = item.querySelector('.accordion-header span.bg-orange-500');
-    if (!open && badge) {
-        // 確認なしで既読にする（回覧のお作法）
-        window.toggleReadStatus(visitorName, customerName, date, false, true); 
+    // 🌟 デイリーレポート用の自動既読ロジック
+    const badge = item.querySelector('.bg-orange-500');
+    if (!open && badge && badge.innerText.includes("未読")) {
+        // 未読(false)を既読にするため auto=true で呼び出し
+        window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
     }
 };
         
