@@ -545,14 +545,13 @@ if (receiver === "全員") {
             body.style.display    = isOpen ? 'none' : 'block';
             arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 
-            // 未読の状態で開いた場合のみ、Firestoreを更新して既読にする
             if (!isOpen && !isRead) {
                 try {
                     const myName = sessionStorage.getItem('userName');
                     const ref = doc(db, "activity_records", recordId);
                     await updateDoc(ref, { readBy: arrayUnion(myName) });
                     
-                    // UIを即座に更新（爆速連動）
+                    // 🌟 UIを即座に更新（バッジ）
                     const badge = el.querySelector('.status-badge');
                     if (badge) {
                         badge.innerText = "既読";
@@ -560,8 +559,18 @@ if (receiver === "全員") {
                     }
                     const card = el.closest('.history-card');
                     if (card) card.classList.remove('border-l-4', 'border-orange-500');
+
+                    // 🌟 修正：開いた瞬間に「未読に戻す」ボタンを出現させる
+                    const btnArea = body.querySelector('.flex.justify-end.mb-4');
+                    if (btnArea && !btnArea.innerHTML.trim()) {
+                        btnArea.innerHTML = `
+                            <button onclick="window.toggleRecordReadStatus('${recordId}', true); event.stopPropagation();" 
+                            class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                                <i class="fa-solid fa-envelope"></i>
+                                <span>未読に戻す</span>
+                            </button>`;
+                    }
                     
-                    // キャッシュを破棄（次回読み込み時に最新状態にするため）
                     sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
                 } catch (e) { console.error("既読更新エラー:", e); }
             }
