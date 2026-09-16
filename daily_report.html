@@ -119,9 +119,16 @@ async function init() {
                 const toOptions = [...new Set([r.visitorName, ...commentators])];
                 const optionHtml = toOptions.map(name => `<option value="${name}">${name}</option>`).join('') + `<option value="全員">全員</option>`;
                 
-                // コメント履歴HTMLの作成
-                const commentHtml = (r.comments || []).map(c => `<div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-xs font-bold text-slate-700">${c.text}</div>`).join('');
-
+                // コメント履歴HTMLの作成（送信者・宛先・日時の完全復元）
+                const commentHtml = (r.comments || []).map(c => `
+                    <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left mb-2">
+                        <div class="flex justify-between items-center mb-1 text-[9px]">
+                            <span class="font-black text-blue-600 px-2 py-0.5 bg-blue-50 rounded-full">${c.sender} ➔ ${c.receiver}</span>
+                            <span class="text-slate-400 font-mono">${c.date || ''}</span>
+                        </div>
+                        <p class="text-xs font-bold text-slate-700">${c.text}</p>
+                    </div>
+                `).join('');
                 const targetNum = dateToNum(r.visitDate);
                 const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
                 const isRead = noti ? noti.isRead : true;
