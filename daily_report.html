@@ -163,15 +163,16 @@ if (!noti && !isMyRelated) return '';
 return `
     <div class="flex justify-end mb-4">
         ${isRead ? `
-            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead}, false, 'acc-${i}')"
+            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', true, false, 'acc-${i}')" 
             class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
                 <i class="fa-solid fa-envelope"></i>
                 <span>未読に戻す</span>
             </button>
-        ` : ''}
-    </div>
-`;
-                    <!-- 1. 2カラムの基本情報 -->
+        : ''}
+        </div>
+    `;
+
+   　　　　          <!-- 1. 2カラムの基本情報 -->
                         <div class="info-grid">
                             <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
                             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
