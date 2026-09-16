@@ -150,30 +150,24 @@ async function init() {
                     <div class="accordion-content">
                         <div class="flex justify-end mb-4">
                             ${(function(){
-                                const [y_sub, m_sub] = targetDate.split('-');
-                                const cacheKeySub = `cp_cal_cache_v_ultimate_${y_sub}_${m_sub.padStart(2, '0')}`;
-                                const targetNum = standardizeDate(r.visitDate).replace(/-/g, '');
-                                
+                                const targetNum = dateToNum(r.visitDate);
                                 const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
-                                
-const isRead = noti ? noti.isRead : true;
-const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
-if (!noti && !isMyRelated) return ''; 
+                const isRead = noti ? noti.isRead : true;
+                const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
+                if (!noti && !isMyRelated) return ''; 
 
-return `
-    <div class="flex justify-end mb-4">
-        ${isRead ? `
-            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', true, false, 'acc-${i}')" 
-            class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
-                <i class="fa-solid fa-envelope"></i>
-                <span>未読に戻す</span>
-            </button>
-        : ''}
-        </div>
-    `;
+                return `
+                    <div class="flex justify-end mb-4">
+                        ${isRead ? `
+                            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', true, false, 'acc-${i}')" 
+                            class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                                <i class="fa-solid fa-envelope"></i>
+                                <span>未読に戻す</span>
+                            </button>` : ''}
+                    </div>
+                `;
 
-   　　　　          <!-- 1. 2カラムの基本情報 -->
-                        <div class="info-grid">
+                       <div class="info-grid">
                             <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
                             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
                             <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p></div>
@@ -182,7 +176,6 @@ return `
                             <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
                         </div>
 
-                        <!-- 2. 定性データ分析 -->
                         <div class="mb-8">
                             <p class="info-label mb-2">定性データ分析</p>
                             <div class="flex flex-wrap gap-2">
@@ -190,64 +183,36 @@ return `
                                 ${r.qualData2 ? `<span class="bg-orange-50 text-orange-600 px-2 py-1 rounded text-[10px] font-black border border-orange-100">${r.qualData2}</span>` : ''}
                                 ${r.qualData3 ? `<span class="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-[10px] font-black border border-emerald-100">${r.qualData3}</span>` : ''}
                                 ${r.qualFree ? `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black border border-slate-200">${r.qualFree}</span>` : ''}
-                                ${!r.qualData1 && !r.qualData2 && !r.qualData3 && !r.qualFree ? '<span class="text-slate-300 text-[10px] font-bold italic">（未分類）</span>' : ''}
                             </div>
                         </div>
 
-                        <!-- 3. 詳細報告内容 -->
                         <p class="info-label mb-2 tracking-widest uppercase">■ お客様からの情報（要望・状況）</p>
-                        <div class="report-box whitespace-pre-wrap text-slate-700 mb-6">${r.content || r.customerReport || '報告なし'}</div>
-                        
+                        <div class="report-box whitespace-pre-wrap text-slate-700 mb-6">${r.content || '報告なし'}</div>
                         <p class="info-label mb-2 tracking-widest uppercase">■ 自分・スタッフの考え（次回提案・課題）</p>
                         <div class="report-box border-l-4 border-orange-200 bg-orange-50/30 whitespace-pre-wrap text-slate-600 mb-6">${r.staffThoughts || '未入力'}</div>
-                        
-                        <!-- 1. まず添付画像を表示 -->
                         ${thumbs ? `<div class="mt-6 flex flex-wrap gap-2 mb-6">${thumbs}</div>` : ''}
-
-                        <!-- 2. 次に次回訪問予定日を右寄せで表示 -->
                         <div class="mt-4 flex justify-end mb-8">
-                            <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">
-                                <i class="fa-regular fa-calendar-check mr-2"></i>次回訪問予定日：${r.nextVisitDate || '--/--/--'}
-                            </div>
+                            <div class="bg-blue-600 text-white px-5 py-2 rounded-xl text-[10px] font-black shadow-md">次回訪問予定日：${r.nextVisitDate || '--/--/--'}</div>
                         </div>
 
-                        <!-- 4. コメントエリア（回覧一覧と完全同期） -->
                         <div class="mt-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
-                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
-                            </p>
+                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i class="fa-solid fa-comment-dots"></i> 指導・確認コメント</p>
                             <div class="space-y-3 mb-5">
-                                ${(r.comments || []).map(c => `
-                                    <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left">
-                                        <div class="flex justify-between items-center mb-1 text-[9px]">
-                                            <span class="font-black text-blue-600 px-2 py-0.5 bg-blue-50 rounded-full">${c.sender} ➔ ${c.receiver}</span>
-                                            <span class="text-slate-400 font-mono">${c.date}</span>
-                                        </div>
-                                        <p class="text-xs font-bold text-slate-700">${c.text}</p>
-                                    </div>
-                                `).join('')}
+                                ${(r.comments || []).map(c => `<div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-xs font-bold text-slate-700">${c.text}</div>`).join('')}
                             </div>
                             <div class="space-y-3 text-left">
-                                <textarea id="cmt-text-${i}" class="w-full p-3 text-xs font-bold rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-400 min-h-[80px]" placeholder="コメントを入力..."></textarea>
+                                <textarea id="cmt-text-${i}" class="w-full p-3 text-xs font-bold rounded-xl border border-slate-200 min-h-[80px]" placeholder="コメント..."></textarea>
                                 <div class="flex justify-between items-center gap-4">
-                                    <div class="flex items-center gap-2 flex-1">
-                                        <span class="text-[9px] font-black text-slate-400">宛先:</span>
-                                        <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
-                                            ${toOptions.map(name => `<option value="${name}">${name}</option>`).join('')}
-                                            <option value="全員">関係者全員</option>
-                                        </select>
-                                    </div>
-                                    <button onclick="if('${r.id}' === 'undefined'){ alert('データID異常です。'); return; } window.postComment('${r.id}', '${r.customerName}', ${i})"
-                                    class="px-6 py-2 bg-[#004098] text-white rounded-xl text-[10px] font-black shadow-md active:scale-95 transition-all">送信</button>
+                                    <select id="cmt-to-${i}" class="flex-1 text-[10px] font-bold p-2 rounded-lg border border-slate-200 bg-white">
+                                        <option value="${r.visitorName}">${r.visitorName}</option><option value="全員">全員</option>
+                                    </select>
+                                    <button onclick="window.postComment('${r.id}', '${r.customerName}', ${i})" class="px-6 py-2 bg-[#004098] text-white rounded-xl text-[10px] font-black shadow-md">送信</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>`;
-            }).join('') : '...';
-
-            autoFocus();
-}
+                </div>\`;
+            }).join('') : '<div class="py-20 text-center text-slate-300 font-black italic uppercase tracking-widest">No Activity Today</div>';
 
 window.postComment = async (recordId, customerName, index) => {
     const text = document.getElementById(`cmt-text-${index}`).value.trim();
