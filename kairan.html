@@ -160,12 +160,14 @@
                     </div>
                 <div class="accordion-content">
 <div class="flex justify-end mb-4">
-    <button onclick="window.toggleReadStatus('${n.id}', ${n.isRead})" 
-    class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${n.isRead ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
-        <i class="fa-solid ${n.isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
-        <span>${n.isRead ? '未読に戻す' : '既読にする'}</span>
-    </button>
-</div>         
+    ${n.isRead ? `
+        <button onclick="window.toggleReadStatus('${n.id}', true)" 
+        class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+            <i class="fa-solid fa-envelope"></i>
+            <span>未読に戻す</span>
+        </button>
+    ` : ''}
+</div>       
                     <div class="info-grid">
                         <div>
                            <p class="info-label">訪問内容</p>
