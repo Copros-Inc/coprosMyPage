@@ -127,7 +127,7 @@ async function init() {
                 const toOptions = [...new Set([r.visitorName, ...commentators])];
                 return `
                 <div class="accordion-item" id="acc-${i}">
-<div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
+<div class="accordion-header" onclick="window.toggleAcc('acc-${i}', '${r.visitorName}', '${r.customerName}', '${r.visitDate}')">
     <div class="flex items-center gap-4">
         ${(function(){
             const [y_sub, m_sub] = targetDate.split('-');
@@ -135,7 +135,7 @@ async function init() {
             const targetNum = dateToNum(r.visitDate);
             const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
             const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
-            if(!noti) return '<span class="w-[50px]"></span>'; // 通知対象外は空白
+            if(!noti) return `<span class="text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50 min-w-[45px] text-center">既読</span>`;
             return `<span class="text-[9px] font-black px-2 py-0.5 rounded-md ${noti.isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">${noti.isRead ? '既読' : '未読'}</span>`;
         })()}
         <span class="bg-white/20 px-3 py-1 rounded text-[10px] font-black">${r.startTime || '--:--'}</span>
@@ -330,35 +330,41 @@ function autoFocus() {
     sessionStorage.removeItem('cp_usage_jump_customer');
 }        
 
-        window.toggleAcc = (id) => {
-            const item = document.getElementById(id);
-            const content = item.querySelector('.accordion-content');
-            const open = content.style.display === 'block';
-            content.style.display = open ? 'none' : 'block';
-            item.querySelector('i').style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
-        };
-window.toggleReadStatus = async (visitorName, customerName, date, currentStatus) => {
+window.toggleAcc = async (id, visitorName, customerName, date) => {
+    const item = document.getElementById(id);
+    const content = item.querySelector('.accordion-content');
+    const open = content.style.display === 'block';
+    
+    content.style.display = open ? 'none' : 'block';
+    item.querySelector('.fa-chevron-down').style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+
+    // 🌟 開いた時かつ未読バッジがある場合、自動で既読にする
+    const badge = item.querySelector('.accordion-header span.bg-orange-500');
+    if (!open && badge) {
+        // 確認なしで既読にする（回覧のお作法）
+        window.toggleReadStatus(visitorName, customerName, date, false, true); 
+    }
+};
+        
+window.toggleReadStatus = async (visitorName, customerName, date, currentStatus, auto = false) => {
+if (auto === false) {  // 👈 autoがfalse（手動クリック）の時だけ確認を出す
     const msg = currentStatus ? "未読に戻しますか？" : "既読にしますか？";
-    if (!confirm(msg)) return;    
+    if (!confirm(msg)) return;
+}
     try {
         const myName = sessionStorage.getItem('userName');
         const targetDate = date.replace(/-/g, '/');
-        
-        // 🌟 爆速検索：自分宛の該当通知をピンポイントで探す
         const q = query(collection(db, "notifications"), 
                         where("recipient", "==", myName),
                         where("visitorName", "==", visitorName),
                         where("customerName", "==", customerName),
                         where("visitDate", "==", targetDate),
                         limit(1));
-        
         const snap = await getDocs(q);
         if (!snap.empty) {
-            // ステータスを反転
             await updateDoc(snap.docs[0].ref, { isRead: !currentStatus });
-            // 🌟 省エネ：カレンダーキャッシュをクリアして戻った時にバッジを反映させる
             Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
-            location.reload(); // 爆速リロード
+            location.reload();
         }
     } catch (e) { console.error("Toggle Error:", e); }
 };
