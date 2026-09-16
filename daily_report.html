@@ -127,9 +127,18 @@ async function init() {
                 const toOptions = [...new Set([r.visitorName, ...commentators])];
                 return `
                 <div class="accordion-item" id="acc-${i}">
-                    <div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
-                        <div class="flex items-center gap-4">
-                            <span class="bg-white/20 px-3 py-1 rounded text-[10px] font-black">${r.startTime || '--:--'}</span>
+<div class="accordion-header" onclick="window.toggleAcc('acc-${i}')">
+    <div class="flex items-center gap-4">
+        ${(function(){
+            const [y_sub, m_sub] = targetDate.split('-');
+            const cacheKeySub = `cp_cal_cache_v_ultimate_${y_sub}_${m_sub.padStart(2, '0')}`;
+            const targetNum = dateToNum(r.visitDate);
+            const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
+            const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+            if(!noti) return '<span class="w-[50px]"></span>'; // 通知対象外は空白
+            return `<span class="text-[9px] font-black px-2 py-0.5 rounded-md ${noti.isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">${noti.isRead ? '既読' : '未読'}</span>`;
+        })()}
+        <span class="bg-white/20 px-3 py-1 rounded text-[10px] font-black">${r.startTime || '--:--'}</span>
                             <!-- 🌟 略称バッジを追加 -->
                             <span class="text-[10px] font-black bg-white/10 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
                             <span class="text-base font-black tracking-tight">${r.visitorName} <i class="fa-solid fa-caret-right mx-2 opacity-50"></i> ${r.customerName}</span>
@@ -146,10 +155,11 @@ async function init() {
                                 const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
                                 const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
                                 
-                                if(!noti) return ''; 
-                                const isRead = noti.isRead;
+                                const isRead = noti ? noti.isRead : true;
+                                const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
+                                if (!noti && !isMyRelated) return ''; 
                                 return `
-                                    <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" 
+                                   <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', ${isRead})" 
                                     class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
                                         <i class="fa-solid ${isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
                                         <span>${isRead ? '未読に戻す' : '既読にする'}</span>
@@ -328,6 +338,8 @@ function autoFocus() {
             item.querySelector('i').style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
         };
 window.toggleReadStatus = async (visitorName, customerName, date, currentStatus) => {
+    const msg = currentStatus ? "未読に戻しますか？" : "既読にしますか？";
+    if (!confirm(msg)) return;    
     try {
         const myName = sessionStorage.getItem('userName');
         const targetDate = date.replace(/-/g, '/');
