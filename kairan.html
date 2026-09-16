@@ -159,12 +159,13 @@
                         <i class="fa-solid fa-chevron-down opacity-50 text-xs transition-transform text-white"></i>
                     </div>
                 <div class="accordion-content">
-    <div class="flex justify-end mb-4">
-        <button onclick="window.toggleReadStatus('${n.id}', ${n.isRead})" class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${n.isRead ? 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-orange-50 hover:text-orange-500' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
-            <i class="fa-solid ${n.isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
-            <span>${n.isRead ? '未読に戻す' : '既読にする'}</span>
-        </button>
-    </div>         
+<div class="flex justify-end mb-4">
+    <button onclick="window.toggleReadStatus('${n.id}', ${n.isRead})" 
+    class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 ${n.isRead ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white' : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-md'}">
+        <i class="fa-solid ${n.isRead ? 'fa-envelope' : 'fa-check-double'}"></i>
+        <span>${n.isRead ? '未読に戻す' : '既読にする'}</span>
+    </button>
+</div>         
                     <div class="info-grid">
                         <div>
                            <p class="info-label">訪問内容</p>
@@ -329,10 +330,15 @@
         };
 
 window.toggleReadStatus = async (id, currentStatus) => {
+    // 🌟 修正：確認ダイアログを追加
+    if (!confirm(currentStatus ? "未読に戻しますか？" : "既読にしますか？")) return;
+    
     try {
         await updateDoc(doc(db, "notifications", id), { isRead: !currentStatus });
         Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
-        // 🌟 ポップアップを消して即リロードすることで「爆速感」を演出
+        
+        // 🌟 修正：リロード後に自動で開くためのIDを保存
+        sessionStorage.setItem('cp_last_opened_kairan', id);
         location.reload();
     } catch (e) { console.error(e); }
 };
