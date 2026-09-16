@@ -90,7 +90,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db } from "./common.js";
-        import { collection, getDocs, query, where, limit }
+        import { collection, getDocs, query, where, limit, arrayUnion, arrayRemove, doc, updateDoc } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -363,11 +363,19 @@ function autoOpenFirst() {
                     .map(f => ({ src: f.base64 || f.url, name: f.name || '添付画像' }));
                 recordImageMap[recordIdx] = images;
 
+                // 🌟 追加：既読判定（readBy配列に自分の名前があるか）
+                const myName = sessionStorage.getItem('userName');
+                const isRead = (data.readBy || []).includes(myName);
+
                 return `
-                <div class="history-card">
-                    <div class="history-header" onclick="window.toggleDetail(this)">
+                <div class="history-card ${isRead ? '' : 'border-l-4 border-orange-500'}" id="card-${data.id}">
+                    <div class="history-header" onclick="window.toggleDetail(this, '${data.id}', ${isRead})">
                         <div class="flex items-center gap-4 flex-wrap">
-                          <span class="text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">${fmtDate(data.visitDate)}</span>
+                            <!-- 🌟 追加：未読既読バッジ -->
+                            <span class="status-badge text-[9px] font-black px-2 py-0.5 rounded-md ${isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">
+                                ${isRead ? '既読' : '未読'}
+                            </span>
+                            <span class="text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">${fmtDate(data.visitDate)}</span>
                           <span class="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
                           <span class="text-sm font-black opacity-90">${data.visitorName || '担当者不明'}</span>
                             ${images.length > 0
@@ -379,7 +387,16 @@ function autoOpenFirst() {
                         <i class="fa-solid fa-chevron-down transition-transform duration-300 arrow-icon opacity-40 text-xs ml-4 flex-shrink-0"></i>
                     </div>
 
-<div class="history-body">
+                    <div class="history-body">
+                        <div class="flex justify-end mb-4">
+                            ${isRead ? `
+                                <button onclick="window.toggleRecordReadStatus('${data.id}', true); event.stopPropagation();" 
+                                class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                                    <i class="fa-solid fa-envelope"></i>
+                                    <span>未読に戻す</span>
+                                </button>
+                            ` : ''}
+                        </div>
     <!-- 🌟 2カラムグリッドで整列 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-16 border-b border-slate-50 mb-6">
         <div class="detail-row">
@@ -522,12 +539,49 @@ if (receiver === "全員") {
         alert("送信エラー: " + e.message);
     }
 };
-        window.toggleDetail = (el) => {
+        
+        window.toggleDetail = async (el, recordId, isRead) => {
             const body   = el.nextElementSibling;
             const arrow  = el.querySelector('.arrow-icon');
             const isOpen = body.style.display === 'block';
             body.style.display    = isOpen ? 'none' : 'block';
             arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+
+            // 未読の状態で開いた場合のみ、Firestoreを更新して既読にする
+            if (!isOpen && !isRead) {
+                try {
+                    const myName = sessionStorage.getItem('userName');
+                    const ref = doc(db, "activity_records", recordId);
+                    await updateDoc(ref, { readBy: arrayUnion(myName) });
+                    
+                    // UIを即座に更新（爆速連動）
+                    const badge = el.querySelector('.status-badge');
+                    if (badge) {
+                        badge.innerText = "既読";
+                        badge.className = "status-badge text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50";
+                    }
+                    const card = el.closest('.history-card');
+                    if (card) card.classList.remove('border-l-4', 'border-orange-500');
+                    
+                    // キャッシュを破棄（次回読み込み時に最新状態にするため）
+                    sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+                } catch (e) { console.error("既読更新エラー:", e); }
+            }
+        };
+
+        // 🌟 追加：未読に戻すロジック（arrayRemove を使用）
+        window.toggleRecordReadStatus = async (recordId, currentStatus) => {
+            if (!confirm("未読に戻しますか？")) return;
+            try {
+                const myName = sessionStorage.getItem('userName');
+                const ref = doc(db, "activity_records", recordId);
+                // 自分の名前を readBy 配列から削除
+                await updateDoc(ref, { readBy: arrayRemove(myName) });
+                
+                // キャッシュを破棄してリロード
+                sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+                location.reload();
+            } catch (e) { console.error("未読戻しエラー:", e); }
         };
 
         init();
