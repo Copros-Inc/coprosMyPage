@@ -75,13 +75,14 @@ async function init() {
 
     const [y, m] = targetDate.split('-');
     const cacheKey = `cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    
-        allRecords = [];
+            const cached = sessionStorage.getItem(cacheKey);
+            let currentNotis = []; // 🌟 追加：通知データを保持する変数
+            
             if (cached) {
                 try {
                     const parsed = JSON.parse(cached);
                     allRecords = (parsed.records || []).filter(r => r.id);
+                    currentNotis = parsed.notifications || []; // 🌟 キャッシュから取得
                 } catch(e) { console.error("Cache Parse Error", e); }
             }
             
@@ -133,8 +134,8 @@ async function init() {
             const [y_sub, m_sub] = targetDate.split('-');
             const cacheKeySub = `cp_cal_cache_v_ultimate_${y_sub}_${m_sub.padStart(2, '0')}`;
             const targetNum = dateToNum(r.visitDate);
-            const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
-            const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+            
+            const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
             if(!noti) return `<span class="text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50 min-w-[45px] text-center">既読</span>`;
             return `<span class="text-[9px] font-black px-2 py-0.5 rounded-md ${noti.isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">${noti.isRead ? '既読' : '未読'}</span>`;
         })()}
@@ -152,8 +153,8 @@ async function init() {
                                 const [y_sub, m_sub] = targetDate.split('-');
                                 const cacheKeySub = `cp_cal_cache_v_ultimate_${y_sub}_${m_sub.padStart(2, '0')}`;
                                 const targetNum = standardizeDate(r.visitDate).replace(/-/g, '');
-                                const notifications = JSON.parse(sessionStorage.getItem(cacheKeySub) || '{}').notifications || [];
-                                const noti = notifications.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+                                
+                                const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
                                 
                                 const isRead = noti ? noti.isRead : true;
                                 const isMyRelated = (clean(r.visitorName) === clean(sessionStorage.getItem('userName')) || (r.circularNames || []).includes(sessionStorage.getItem('userName')));
@@ -346,25 +347,48 @@ window.toggleAcc = async (id, visitorName, customerName, date) => {
     }
 };
         
-window.toggleReadStatus = async (visitorName, customerName, date, currentStatus, auto = false) => {
-if (auto === false) {  // 👈 autoがfalse（手動クリック）の時だけ確認を出す
-    const msg = currentStatus ? "未読に戻しますか？" : "既読にしますか？";
-    if (!confirm(msg)) return;
-}
+window.toggleReadStatus = async (visitorName, customerName, date, currentStatus, auto = false, autoOpenId = null) => {
+    // 1. 手動の時だけ確認を出す（お作法）
+    if (auto === false && !confirm(currentStatus ? "未読に戻しますか？" : "既読にしますか？")) return;
+    
     try {
         const myName = sessionStorage.getItem('userName');
         const targetDate = date.replace(/-/g, '/');
+        
+        // 2. 通信を最小限に（1件だけ取得）
         const q = query(collection(db, "notifications"), 
                         where("recipient", "==", myName),
                         where("visitorName", "==", visitorName),
                         where("customerName", "==", customerName),
                         where("visitDate", "==", targetDate),
                         limit(1));
+        
         const snap = await getDocs(q);
         if (!snap.empty) {
+            // Firestoreを更新（Read 1回 / Write 1回）
             await updateDoc(snap.docs[0].ref, { isRead: !currentStatus });
-            Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
-            location.reload();
+
+            // 3. 🌟 カレンダー・サイドバー連動の要（キャッシュの狙い撃ち更新）
+            const [y, m] = date.split(/[-/]/);
+            const cacheKey = `cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`;
+            const cached = JSON.parse(sessionStorage.getItem(cacheKey) || '{}');
+            
+            if (cached.notifications) {
+                const targetIdx = cached.notifications.findIndex(n => 
+                    clean(n.visitorName) === clean(visitorName) && 
+                    dateToNum(n.visitDate) === dateToNum(date) && 
+                    clean(n.customerName) === clean(customerName)
+                );
+                if (targetIdx !== -1) {
+                    // キャッシュ内の未読状態を直接書き換え
+                    cached.notifications[targetIdx].isRead = !currentStatus;
+                    sessionStorage.setItem(cacheKey, JSON.stringify(cached));
+                }
+            }
+
+            // 4. 爆速リロードと位置保持
+            if(autoOpenId) sessionStorage.setItem('cp_auto_open_id', autoOpenId);
+            location.reload(); 
         }
     } catch (e) { console.error("Toggle Error:", e); }
 };
