@@ -148,7 +148,7 @@
                     <div class="accordion-header" onclick="window.toggleKairan('${n.id}', ${n.isRead}, '${displayDate}')">
                         <div class="flex items-center gap-4">
                             <input type="checkbox" class="bulk-check w-5 h-5 accent-[#004098] rounded-md" onclick="event.stopPropagation()" value="${n.id}">
-                            <span class="status-txt ${n.isRead ? 'status-read' : 'status-unread'}">${n.isRead ? '既読' : '未読'}</span>
+                            <span class="status-txt ${n.isRead ? 'status-read' : 'status-unread' + (n.isRead ? '' : ' animate-pulse')}">${n.isRead ? '既読' : '未読'}</span>
                             <span class="badge ${n.type.includes('アポ') ? 'badge-apo' : 'badge-rec'}">${n.type.includes('アポ') ? 'アポ' : '実績'}</span>
                             <span class="text-sm font-mono font-black text-white/90">${dateFmt}</span>
                             <span class="text-sm font-black text-white tracking-tight">
