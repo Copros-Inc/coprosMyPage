@@ -55,10 +55,11 @@
             <!-- 🌟 ケコム関連属性フィルタ -->
             <select id="typeFilter" class="scope-select">
                 <option value="ALL">全属性</option>
-                <option value="ケコム">ケコム</option>
                 <option value="コンサル">コンサル</option>
-                <option value="官庁">官庁</option>
-                <option value="取引先">取引先</option>
+                <option value="ゼネコン">ゼネコン</option>
+                <option value="官公庁">官公庁</option>
+                <option value="有力者">有力者</option>
+                <option value="仕入れ先">仕入れ先</option>
             </select>
             <button onclick="window.initMap('search')" class="search-btn active:scale-95 transition-all">検索を実行</button>
         </div>
@@ -160,11 +161,22 @@
         window.initMap = async (mode = 'recent') => {
             const keyword = document.getElementById('mapSearchInput').value.trim();
             const type = document.getElementById('typeFilter').value;
+
+            // 🌟 追加：住所検索による地図ジャンプ
+            if (mode === 'search' && keyword) {
+                const searchCoords = await getCoords(keyword);
+                if (searchCoords) {
+                    map.setView([searchCoords.lat, searchCoords.lng], 12);
+                    log(`${keyword}周辺を表示します`);
+                }
+            }
+
             if (mode === 'search' && allFetchedCustomers.length > 0 && !keyword.includes(' ')) {
-                const filtered = allFetchedCustomers.filter(c => (c.name.includes(keyword)) && (type === 'ALL' || c.type === type));
+                const filtered = allFetchedCustomers.filter(c => (c.name.includes(keyword) || (c.address || "").includes(keyword)) && (type === 'ALL' || c.type === type));
                 if (filtered.length > 0) { renderMarkers(filtered, true); return; }
             }
-            log(mode === 'more' ? "さらに読み込み中..." : "データを同期中...");
+            
+            log(mode === 'more' ? "さらに読み込み中..." : "データを照合中...");
             const ref = collection(db, "customers");
             let constraints = [orderBy("updatedAt", "desc"), limit(100)];
             if (mode === 'more' && lastVisibleDoc) {
@@ -173,11 +185,18 @@
             } else {
                 markersLayer.clearLayers(); allFetchedCustomers = [];
             }
+
             let q = query(ref, ...constraints);
             if (keyword && mode === 'search') q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
             else if (type !== 'ALL') q = query(ref, where("type", "==", type), ...constraints);
+            
             try {
-                const snap = await getDocs(q);
+                let snap = await getDocs(q);
+                // 🌟 追加：名前で0件なら住所で再検索（省エネフォールバック）
+                if (snap.empty && keyword && mode === 'search') {
+                    q = query(ref, where("address", ">=", keyword), where("address", "<=", keyword + '\uf8ff'), limit(100));
+                    snap = await getDocs(q);
+                }
                 if (snap.empty) { log("該当なし"); return; }
                 lastVisibleDoc = snap.docs[snap.docs.length - 1];
                 const newCustomers = await Promise.all(snap.docs.map(async (d) => {
