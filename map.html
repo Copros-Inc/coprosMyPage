@@ -66,9 +66,10 @@
         <div id="map">
             <div id="geo-log"></div>
             <div class="map-control">
-                <button onclick="window.locateMe()" class="text-control-btn"><i class="fa-solid fa-location-crosshairs text-orange-500"></i>現在地を表示</button>
-                <button onclick="window.initMap('recent')" class="text-control-btn"><i class="fa-solid fa-clock-rotate-left text-blue-500"></i>最近の100件</button>
-                <button onclick="window.clearAllPins()" class="text-control-btn text-rose-500"><i class="fa-solid fa-trash-can"></i>クリア</button>
+                <button onclick="window.locateMe()" class="text-control-btn"><i class="fa-solid fa-location-crosshairs text-orange-500"></i>現在地へ移動</button>
+                <button onclick="window.searchNearby()" class="text-control-btn"><i class="fa-solid fa-magnifying-glass-location text-rose-500"></i>この周辺を探す</button>
+                <button onclick="window.initMap('more')" class="text-control-btn"><i class="fa-solid fa-circle-plus text-emerald-500"></i>表示を増やす (+100件)</button>
+                <button onclick="window.initMap('recent')" class="text-control-btn"><i class="fa-solid fa-rotate text-blue-500"></i>最新100件へ</button>
             </div>
 
             <div class="map-legend">
@@ -94,6 +95,8 @@
         }).addTo(map);
         
         let markersLayer = L.layerGroup().addTo(map);
+        let lastVisibleDoc = null; 
+        let allFetchedCustomers = [];
 
         function log(msg) {
             const el = document.getElementById('geo-log');
@@ -102,7 +105,7 @@
             setTimeout(() => el.style.display = 'none', 3000);
         }
 
-        window.clearAllPins = () => { markersLayer.clearLayers(); log("地図をクリアしました。"); };
+        window.clearAllPins = () => { markersLayer.clearLayers(); allFetchedCustomers = []; log("地図をクリアしました。"); };
 
         function addPin(c) {
             let color = '#94a3b8';
@@ -112,21 +115,19 @@
                 else if (diffDays > 90) color = '#ef4444';
                 else color = '#ff7e11';
             }
-            
             const icon = L.divIcon({ 
                 html: `<div class="custom-pin" style="background-color:${color};"><i class="fa-solid fa-building"></i></div>`, 
                 className: '', iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -28] 
             });
-
             L.marker([c.lat, c.lng], { icon }).addTo(markersLayer).bindPopup(`
                 <div class="p-2" style="min-width:220px;">
-                    <p class="text-[10px] font-black text-orange-500 uppercase tracking-tighter mb-1">${c.type || 'カテゴリ未設定'}</p>
+                    <p class="text-[10px] font-black text-orange-500 uppercase mb-1">${c.type || '未設定'}</p>
                     <h3 class="font-black text-base text-slate-800 mb-1 leading-tight">${c.name}</h3>
                     <p class="text-[10px] text-slate-500 mb-4 font-bold"><i class="fa-solid fa-location-dot mr-1"></i>${c.address}</p>
                     <div class="grid grid-cols-2 gap-2">
-                        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.address)}" target="_blank" class="bg-slate-800 text-white text-[10px] py-2.5 rounded-xl text-center font-black shadow-sm">ナビ開始</a>
-                        <button onclick="location.href='customer_history.html?name=${encodeURIComponent(c.name)}'" class="bg-blue-50 text-[#004098] text-[10px] py-2.5 rounded-xl font-black border border-blue-100">履歴を表示</button>
-                        <button onclick="location.href='history.html?name=${encodeURIComponent(c.name)}'" class="col-span-2 bg-[#ff7e11] text-white text-[10px] py-2.5 rounded-xl font-black shadow-md active:scale-95">このお客様の実績を書く</button>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.address)}" target="_blank" class="bg-slate-800 text-white text-[10px] py-2.5 rounded-xl text-center font-black">ナビ開始</a>
+                        <button onclick="location.href='customer_history.html?name=${encodeURIComponent(c.name)}'" class="bg-blue-50 text-[#004098] text-[10px] py-2.5 rounded-xl font-black">履歴</button>
+                        <button onclick="location.href='history.html?name=${encodeURIComponent(c.name)}'" class="col-span-2 bg-[#ff7e11] text-white text-[10px] py-2.5 rounded-xl font-black shadow-md">実績を書く</button>
                     </div>
                 </div>
             `);
@@ -141,52 +142,63 @@
             return null;
         }
 
+        window.searchNearby = () => {
+            log("現在地を取得中...");
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude, longitude } = pos.coords;
+                map.setView([latitude, longitude], 13);
+                log("周辺のお客様を照合中...");
+                const ref = collection(db, "customers");
+                const q = query(ref, where("lat", ">=", latitude - 0.1), where("lat", "<=", latitude + 0.1), limit(100));
+                const snap = await getDocs(q);
+                const filtered = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.lng >= longitude - 0.1 && c.lng <= longitude + 0.1);
+                renderMarkers(filtered, true);
+                log(`${filtered.length}件の近隣顧客を表示`);
+            }, (err) => alert("位置情報の取得に失敗しました"));
+        };
+
         window.initMap = async (mode = 'recent') => {
             const keyword = document.getElementById('mapSearchInput').value.trim();
             const type = document.getElementById('typeFilter').value;
-            
-            log(mode === 'search' ? `検索中: ${keyword || type}` : "最新の100件を同期中...");
-            
-            let q;
-            const ref = collection(db, "customers");
-
-            // 🌟 省エネ ＆ ケコム特化クエリ
-            if (mode === 'search') {
-                if (keyword) {
-                    q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(50));
-                } else if (type !== 'ALL') {
-                    q = query(ref, where("type", "==", type), orderBy("updatedAt", "desc"), limit(100));
-                } else {
-                    q = query(ref, orderBy("updatedAt", "desc"), limit(100));
-                }
-            } else {
-                q = query(ref, orderBy("updatedAt", "desc"), limit(100));
+            if (mode === 'search' && allFetchedCustomers.length > 0 && !keyword.includes(' ')) {
+                const filtered = allFetchedCustomers.filter(c => (c.name.includes(keyword)) && (type === 'ALL' || c.type === type));
+                if (filtered.length > 0) { renderMarkers(filtered, true); return; }
             }
-
+            log(mode === 'more' ? "さらに読み込み中..." : "データを同期中...");
+            const ref = collection(db, "customers");
+            let constraints = [orderBy("updatedAt", "desc"), limit(100)];
+            if (mode === 'more' && lastVisibleDoc) {
+                const { startAfter } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                constraints.push(startAfter(lastVisibleDoc));
+            } else {
+                markersLayer.clearLayers(); allFetchedCustomers = [];
+            }
+            let q = query(ref, ...constraints);
+            if (keyword && mode === 'search') q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
+            else if (type !== 'ALL') q = query(ref, where("type", "==", type), ...constraints);
             try {
                 const snap = await getDocs(q);
-                markersLayer.clearLayers();
-
-                for (const d of snap.docs) {
+                if (snap.empty) { log("該当なし"); return; }
+                lastVisibleDoc = snap.docs[snap.docs.length - 1];
+                const newCustomers = await Promise.all(snap.docs.map(async (d) => {
                     const c = { id: d.id, ...d.data() };
-                    // 🌟 住所から座標への自動メンテナンス
                     if (!c.lat || !c.lng) {
                         const coords = await getCoords(c.address);
-                        if (coords) {
-                            await updateDoc(doc(db, "customers", c.id), coords);
-                            c.lat = coords.lat; c.lng = coords.lng;
-                        }
+                        if (coords) { updateDoc(doc(db, "customers", c.id), coords); c.lat = coords.lat; c.lng = coords.lng; }
                     }
-                    if (c.lat && c.lng) addPin(c);
-                }
-
-                if (markersLayer.getLayers().length > 0) {
-                    map.fitBounds(new L.featureGroup(markersLayer.getLayers()).getBounds().pad(0.2));
-                } else {
-                    alert("該当するお客様が見つかりませんでした。");
-                }
+                    return c;
+                }));
+                const valid = newCustomers.filter(c => c.lat && c.lng);
+                allFetchedCustomers = [...allFetchedCustomers, ...valid];
+                renderMarkers(valid, mode !== 'more');
             } catch (e) { console.error(e); }
         };
+
+        function renderMarkers(customers, clear) {
+            if (clear) markersLayer.clearLayers();
+            customers.forEach(c => addPin(c));
+            if (clear && markersLayer.getLayers().length > 0) map.fitBounds(new L.featureGroup(markersLayer.getLayers()).getBounds().pad(0.2));
+        }
 
         window.locateMe = () => map.locate({setView: true, maxZoom: 15});
         
