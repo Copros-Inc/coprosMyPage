@@ -159,31 +159,38 @@
                 let q = query(ref, orderBy("updatedAt", "desc"), limit(100));
 
                 // 既存：条件がある時だけピンポイントで取得
+                // 🌟 修正：行ごとの範囲を正確に定義（あ〜お等）
                 if (kana !== 'all' && kana !== '他') {
-                    const rangeMap = {
-                        'あ': 'ア', 'か': 'カ', 'さ': 'サ', 'た': 'タ',
-                        'な': 'ナ', 'は': 'ハ', 'ま': 'マ', 'や': 'ヤ',
-                        'ら': 'ラ', 'わ': 'ワ'
+                    const range = {
+                        'あ': ['ア', 'カ'], 'か': ['カ', 'サ'], 'さ': ['サ', 'タ'],
+                        'た': ['タ', 'ナ'], 'な': ['ナ', 'ハ'], 'は': ['ハ', 'マ'],
+                        'ま': ['マ', 'ヤ'], 'や': ['ヤ', 'ラ'], 'ら': ['ラ', 'ワ'],
+                        'わ': ['ワ', 'ン']
                     };
-                    const start = rangeMap[kana] || kana;
-                    const end = String.fromCharCode(start.charCodeAt(0) + 1);
-                    q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"), limit(100));
+                    const [start, end] = range[kana] || [kana, String.fromCharCode(kana.charCodeAt(0) + 1)];
+                    q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"), limit(200));
                 } else if (kana === '他') {
-                    // 既存の「他」ボタン：数字・英字・記号等
-                    q = query(ref, where("kana", "<", "ア"), orderBy("kana"), limit(100));
-                } else if (name) {
-                    q = query(ref, where("name", ">=", name), where("name", "<=", name + '\uf8ff'), orderBy("name"), limit(100));
-                } else if (addr) {
-                    q = query(ref, where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'), orderBy("address"), limit(100));
-                } else if (rank) {
-                    q = query(ref, where("rank", "==", rank), orderBy("updatedAt", "desc"), limit(100));
-                } else if (type) {
-                    q = query(ref, where("type", "==", type), orderBy("updatedAt", "desc"), limit(100));
+                    q = query(ref, where("kana", "<", "ア"), orderBy("kana"), limit(200));
+                } else if (name || addr || rank || type) {
+                    // 🌟 修正：全体検索を可能にする動的クエリ（前方一致優先）
+                    let constraints = [orderBy("updatedAt", "desc"), limit(200)];
+                    if (name) constraints = [where("name", ">=", name), where("name", "<=", name + '\uf8ff'), orderBy("name"), limit(200)];
+                    else if (addr) constraints = [where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'), orderBy("address"), limit(200)];
+                    else {
+                        if (rank) constraints.unshift(where("rank", "==", rank));
+                        if (type) constraints.unshift(where("type", "==", type));
+                    }
+                    q = query(ref, ...constraints);
                 }
 
                 const snap = await getDocs(q);
-                allCustomers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                let results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+                // 🌟 メモリ内フィルタリング（省エネ：1回の通信で得た結果をさらに精査）
+                if (rank && !q._query.filters.some(f => f.field.path === 'rank')) results = results.filter(r => r.rank === rank);
+                if (type && !q._query.filters.some(f => f.field.path === 'type')) results = results.filter(r => r.type === type);
+                
+                allCustomers = results;
                 // ▼ 取得データをキャッシュ保存 ▼
                 saveToCache(cacheKey, allCustomers);
 
