@@ -14,6 +14,7 @@
         .visit-badge { background-color: #fff7ed; color: #ff7e11; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 900; border: 1px solid #ffedd5; white-space: nowrap; display: inline-block; min-width: 55px; text-align: center; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
     </style>
 </head>
 <body class="flex h-screen overflow-hidden text-slate-700">
@@ -189,6 +190,9 @@
                 // 🌟 メモリ内フィルタリング（省エネ：1回の通信で得た結果をさらに精査）
                 if (rank && !q._query.filters.some(f => f.field.path === 'rank')) results = results.filter(r => r.rank === rank);
                 if (type && !q._query.filters.some(f => f.field.path === 'type')) results = results.filter(r => r.type === type);
+
+                if (name) results = results.filter(r => (r.name || "").includes(name));
+                if (addr) results = results.filter(r => (r.address || "").includes(addr));
                 
                 allCustomers = results;
                 // ▼ 取得データをキャッシュ保存 ▼
@@ -267,6 +271,10 @@
             window.executeSearch();
         };
 
+        // 🌟 追加：Enterキーで検索実行（利便性向上）
+        document.querySelectorAll('#detailSearchSection input').forEach(el => {
+            el.addEventListener('keypress', (e) => { if (e.key === 'Enter') window.executeSearch(); });
+        });
         init();
     </script>
 </body>
