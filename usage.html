@@ -200,6 +200,21 @@ window.renderStaffList = () => {
             <p class="text-[8px] opacity-60 uppercase">${s.dept || ''}</p>
         </div>`).join('');
 };
+
+        // 🌟 復活：社員を選択した時の処理
+        window.selectStaff = async (name) => {
+            selectedName = name; 
+            window.renderStaffList(); // 選択状態（青色）を反映
+            document.getElementById('guideMsg').style.display = 'none';
+            document.getElementById('toolArea').style.display = 'block';
+            try {
+                currentStaffRecords = await loadRecords(name);
+                await fetchMyNotifications();
+                document.getElementById('selectedStaffLabel').innerText = `${name} さんの活動履歴`;
+                window.setMonth(currentM);
+            } catch (e) { console.error("Select Staff Error:", e); }
+        };
+        
         window.setMonth = (m) => { currentM = m; document.querySelectorAll('.month-btn').forEach(btn => btn.classList.toggle('active', btn.id === `m-btn-${m}`)); window.renderAccordion(); };
 
         window.renderAccordion = () => {
