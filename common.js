@@ -15,7 +15,7 @@ export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
 // 🌟 ケコム関連部署の定義
-export const TARGET_DEPTS = ["ケコム部", "関西支店", "関東支店", "中部営業所"];
+export const TARGET_DEPTS = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所"];
 
 let unsubscribeStore = null;
 /**
@@ -229,3 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('pageshow', () => {
     watchNotifications();
 });
+
+export function getDisplayDept(deptName) {
+    if (!deptName) return "その他の部署";
+    return TARGET_DEPTS.includes(deptName) ? deptName : "その他の部署";
+}
