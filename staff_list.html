@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8"><title>組織員情報一覧 | CP My Page</title>
+    <meta charset="UTF-8"><title>社員情報一覧 | CP My Page</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -59,15 +59,16 @@
                 </div>
 
                 <!-- 🌟 部署抽出フィルター：あかさたなから変更 -->
-                <div class="flex items-center gap-6 mb-8 overflow-x-auto pb-2 custom-scrollbar">
-                    <div id="deptButtons" class="flex gap-2">
-                        <button class="filter-btn active" data-dept="ALL">全社員</button>
-                        <button class="filter-btn" data-dept="ケコム部">ケコム部</button>
-                        <button class="filter-btn" data-dept="関西支店">関西支店</button>
-                        <button class="filter-btn" data-dept="関東支店">関東支店</button>
-                        <button class="filter-btn" data-dept="中部営業所">中部営業所</button>
-                        <button class="filter-btn" data-dept="他">その他部署</button>
-                    </div>
+<div id="deptButtons" class="flex gap-2">
+    <button class="filter-btn active" data-dept="ALL">全社員</button>
+    <button class="filter-btn" data-dept="社長">社長</button>
+    <button class="filter-btn" data-dept="専務">専務</button>
+    <button class="filter-btn" data-dept="ケコム部">ケコム部</button>
+    <button class="filter-btn" data-dept="関西支店">関西支店</button>
+    <button class="filter-btn" data-dept="関東支店">関東支店</button>
+    <button class="filter-btn" data-dept="中部営業所">中部営業所</button>
+    <button class="filter-btn" data-dept="他">その他部署</button>
+</div>
                     <div class="text-slate-400 font-bold text-sm whitespace-nowrap ml-auto bg-white px-4 py-2 rounded-full border border-slate-100"><span id="totalDisplay" class="text-slate-800 text-xl tracking-tighter">0</span> <span class="text-[10px] uppercase">Staffs Found</span></div>
                 </div>
 
@@ -135,7 +136,7 @@
             document.getElementById('totalDisplay').innerText = dataList.length;
         }
 
-        // 🌟 部署ボタンによる抽出ロジック
+        // 🌟 修正：部署ボタンのクリックイベント
         document.querySelectorAll('#deptButtons .filter-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('#deptButtons .filter-btn').forEach(b => b.classList.remove('active'));
@@ -145,6 +146,7 @@
                 let filtered = allStaffs;
                 
                 if (targetDept === '他') {
+                    // common.js の TARGET_DEPTS に含まれない部署の人を抽出
                     filtered = allStaffs.filter(s => !TARGET_DEPTS.includes(s.dept));
                 } else if (targetDept !== 'ALL') {
                     filtered = allStaffs.filter(s => s.dept === targetDept);
