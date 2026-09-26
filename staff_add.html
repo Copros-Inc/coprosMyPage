@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8"><title>組織員登録・編集 | CP My Page</title>
+    <meta charset="UTF-8"><title>社員登録・編集 | CP My Page</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -25,7 +25,7 @@
                 
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-10 gap-4">
                     <div>
-                        <h1 class="text-3xl lg:text-4xl font-black text-slate-800 tracking-tighter mb-1" id="pageTitle">組織員登録・編集</h1>
+                        <h1 class="text-3xl lg:text-4xl font-black text-slate-800 tracking-tighter mb-1" id="pageTitle">社員登録・編集</h1>
                         <nav class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Staff Account & Identity Setup</nav>
                     </div>
                     <div class="flex gap-3 w-full lg:w-auto">
@@ -90,7 +90,7 @@
 
                 <div class="flex justify-center gap-4 py-8 mb-24 border-t border-slate-200">
                     <button type="button" id="saveBtnBottom" onclick="document.getElementById('saveBtnTrigger').click()" class="px-24 py-4 bg-[#004098] text-white rounded-2xl font-black text-sm hover:shadow-2xl hover:scale-[1.02] flex items-center gap-4 active:scale-95 transition-all shadow-xl">
-                        <i class="fa-solid fa-paper-plane"></i> 組織員情報を保存・公開
+                        <i class="fa-solid fa-paper-plane"></i> 社員情報を保存・公開
                     </button>
                 </div>
             </div>
@@ -107,7 +107,7 @@
 
         async function init() {
             if (editId) {
-                document.getElementById('pageTitle').innerText = "組織員アカウント編集";
+                document.getElementById('pageTitle').innerText = "社員アカウント編集";
                 try {
                     const snap = await getDoc(doc(db, "staffs", editId));
                     if (snap.exists()) {
@@ -148,7 +148,7 @@
 
             try {
                 await setDoc(doc(db, "staffs", id), data);
-                alert("組織員情報を正常に更新しました！");
+                alert("社員情報を正常に更新しました！");
                 location.href = 'staff_list.html';
             } catch (e) {
                 console.error("Save Error:", e);
