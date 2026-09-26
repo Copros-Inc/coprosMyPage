@@ -49,15 +49,18 @@
                                 <input type="text" id="staffName" placeholder="例: コプロス 太郎" class="form-input text-slate-800" required>
                             </div>
                             <div>
-                                <label class="label-text">所属部署</label>
-                                <!-- 🌟 4部署に限定 -->
-                                <select id="staffDept" class="form-input font-black text-slate-700 bg-slate-50">
-                                    <option>ケコム部</option>
-                                    <option>関西支店</option>
-                                    <option>関東支店</option>
-                                    <option>中部営業所</option>
-                                </select>
-                            </div>
+                                  <label class="label-text">所属部署</label>
+    <!-- 🌟 社長・専務を追加し、自由入力も可能にする構成 -->
+    <input type="text" id="staffDept" list="deptOptions" class="form-input font-black text-slate-700 bg-slate-50" placeholder="部署名を選択または入力">
+    <datalist id="deptOptions">
+        <option value="社長">
+        <option value="専務">
+        <option value="ケコム部">
+        <option value="関西支店">
+        <option value="関東支店">
+        <option value="中部営業所">
+    </datalist>
+</div>
                             <div>
                                 <label class="label-text">権限設定 <span class="text-rose-500">*</span></label>
                                 <div class="flex gap-8 mt-3">
