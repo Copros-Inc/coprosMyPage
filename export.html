@@ -255,7 +255,13 @@
             const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
             const visitor = document.getElementById('visitorFilter').value;
             const rank = document.getElementById('rankFilter').value;
-           
+            const dept = document.getElementById('deptFilter').value;
+
+            // 🌟 復活：選択された出力項目を取得するロジック
+            const selectedCols = Array.from(document.querySelectorAll('#columnGrid input:checked')).map(el => {
+                return COLUMNS.find(c => c.id === el.value);
+            });
+
             try {
                 let q = query(
                     collection(db, "activity_records"),
@@ -263,10 +269,8 @@
                     where("visitDate", "<=", end),
                     orderBy("visitDate", "desc")
                 );
-
-                const dept = document.getElementById('deptFilter').value;
-               if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
                 
+                if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
                 if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
                 if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
