@@ -60,10 +60,14 @@
                 </div>
                 <div class="staff-selector-card p-6 mb-8">
                     <div class="flex flex-col lg:flex-row gap-4 mb-6">
-                        <select id="deptFilter" onchange="window.renderStaffList()" class="scope-select min-w-[240px]">
-                            <option value="ALL">全ケコム関連</option>
-                            <option>ケコム部</option><option>関西支店</option><option>関東支店</option><option>中部営業所</option>
-                        </select>
+<select id="deptFilter" onchange="window.renderStaffList()" class="scope-select min-w-[240px]">
+    <option value="ALL">全社員を表示</option>
+    <option>ケコム部</option>
+    <option>関西支店</option>
+    <option>関東支店</option>
+    <option>中部営業所</option>
+    <option value="OTHER">その他の部署</option>
+</select>
                         <input type="text" id="staffSearch" oninput="window.renderStaffList()" placeholder="氏名で検索..."
                             class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold">
                     </div>
@@ -110,7 +114,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, TARGET_DEPTS } from "./common.js";
+        import { db, TARGET_DEPTS, watchNotifications, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, where, orderBy, limit, writeBatch, doc, updateDoc, arrayUnion, addDoc, serverTimestamp }
     　　　 from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         let allStaffs = [], currentStaffRecords = [], selectedName = "", currentM = new Date().getMonth() + 1, recordImageMap = {}, myNotifications = [];
@@ -173,23 +177,29 @@ async function loadRecords(name) {
             } catch (e) { console.error(e); }
         }
 
-        window.renderStaffList = () => {
-            const kw = clean(document.getElementById('staffSearch').value.toLowerCase()), dept = document.getElementById('deptFilter').value;
-            document.getElementById('staffList').innerHTML = allStaffs.filter(s => { const nameM = !kw || clean(s.name).toLowerCase().includes(kw); const sDept = clean(s.dept || ""); return nameM && (dept === 'ALL' ? TARGET_DEPTS.some(t => clean(t) === sDept) : sDept === clean(dept)); }).map(s => `<div class="staff-item ${clean(selectedName) === clean(s.name) ? 'active' : ''}" onclick="window.selectStaff('${s.name}')"><p class="font-black text-xs">${s.name}</p><p class="text-[8px] opacity-60 uppercase">${s.dept || ''}</p></div>`).join('');
-        };
+// 🌟 156行目：部署判定ロジックの差し替え
+window.renderStaffList = () => {
+    const kw = clean(document.getElementById('staffSearch').value.toLowerCase());
+    const dept = document.getElementById('deptFilter').value;
+    
+    const filtered = allStaffs.filter(s => {
+        const matchesKw = !kw || clean(s.name).toLowerCase().includes(kw);
+        const displayDept = getDisplayDept(s.dept); // 社長/専務/その他判定
+        
+        // 🌟 社長・専務は集計リストに出さない
+        if (s.dept === "社長" || s.dept === "専務") return false;
 
-        window.selectStaff = async (name) => {
-            selectedName = name; window.renderStaffList();
-            document.getElementById('guideMsg').style.display = 'none';
-            document.getElementById('toolArea').style.display = 'block';
-            try {
-                currentStaffRecords = await loadRecords(name);
-                await fetchMyNotifications();
-                document.getElementById('selectedStaffLabel').innerText = `${name} さんの活動履歴`;
-                window.setMonth(currentM);
-            } catch (e) { console.error(e); }
-        };
+        if (dept === 'ALL') return matchesKw;
+        if (dept === 'OTHER') return matchesKw && displayDept === "その他の部署";
+        return matchesKw && clean(s.dept) === clean(dept);
+    });
 
+    document.getElementById('staffList').innerHTML = filtered.map(s => `
+        <div class="staff-item ${clean(selectedName) === clean(s.name) ? 'active' : ''}" onclick="window.selectStaff('${s.name}')">
+            <p class="font-black text-xs">${s.name}</p>
+            <p class="text-[8px] opacity-60 uppercase">${s.dept || ''}</p>
+        </div>`).join('');
+};
         window.setMonth = (m) => { currentM = m; document.querySelectorAll('.month-btn').forEach(btn => btn.classList.toggle('active', btn.id === `m-btn-${m}`)); window.renderAccordion(); };
 
         window.renderAccordion = () => {
@@ -340,17 +350,21 @@ window.postComment = async (recordId, customerName, index) => {
             } catch (e) { console.error(e); }
         };
 
-        window.toggleAcc = (id) => {
-            const item = document.getElementById(id); if (!item) return;
-            const content = item.querySelector('.accordion-content'), icon = item.querySelector('.fa-chevron-down');
-            const isOpen = content.style.display === 'block';
-            content.style.display = isOpen ? 'none' : 'block';
-            if (icon) icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-            if (!isOpen) {
-                const idx = id.split('-')[1], btn = document.getElementById(`toggle-btn-${idx}`);
-                if (btn && btn.innerText.includes('既読にする')) window.toggleReadStatus(item.dataset.visitDate, idx);
-            }
-        };
+window.toggleAcc = async (id) => {
+    const item = document.getElementById(id); if (!item) return;
+    const content = item.querySelector('.accordion-content'), icon = item.querySelector('.fa-chevron-down');
+    const isOpen = content.style.display === 'block';
+    content.style.display = isOpen ? 'none' : 'block';
+    if (icon) icon.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+
+    // 🌟 爆速既読：未読バッジがあれば即座に消してFirestore更新
+    const badge = item.querySelector(`[id^="badge-"]`);
+    if (!isOpen && badge && badge.style.display !== 'none') {
+        const idx = id.split('-')[1];
+        // toggleReadStatusを呼び出す（引数を整理して、既存のボタンがなくても動くようにします）
+        window.toggleReadStatus(item.dataset.visitDate, idx, true); 
+    }
+};
 
         window.returnToCalendar = () => { Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); }); sessionStorage.setItem('cp_return_from_usage', 'true'); location.href = 'calendar.html'; };
         init();
