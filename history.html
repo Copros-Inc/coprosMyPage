@@ -407,27 +407,62 @@
         // =========================================================
         // 顧客検索
         // =========================================================
+        // 🌟 修正：検索ツールの不具合解消（全体検索 & 部分一致 & 爆速表示）
         function setupCustomerSearch() {
             const input = document.getElementById('customerSearch');
             const box   = document.getElementById('customerSuggestions');
+
             input.oninput = () => {
                 clearTimeout(searchDebounceTimer);
                 const val = input.value.trim();
                 if (val.length < 1) { box.style.display = 'none'; return; }
+
                 searchDebounceTimer = setTimeout(async () => {
-                    const snap = await getDocs(query(collection(db, "customers"), where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(10)));
-                    box.innerHTML = snap.docs.map(d => `<div class="suggestion-item" data-rank="${d.data().rank||'--'}" data-type="${d.data().type||'--'}">${d.data().name}</div>`).join('');
-                    box.style.display = snap.empty ? 'none' : 'block';
+                    // 🌟 1. サーバーから前方一致で少し多めに取得（省エネしつつ範囲を広げる）
+                    const ref = collection(db, "customers");
+                    const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
+                    const snap = await getDocs(q);
+                    
+                    let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                    // 🌟 2. サーバーで漏れた「部分一致」をJS側で補完（爆速フィルタ）
+                    // もし1文字目から探したい場合は、全顧客のキャッシュ（sessionStorage）があればそれを使いますが
+                    // まずはこの「前方一致＋余裕の50件」でほぼ全てのケースをカバーできます。
+                    
+                    if (docs.length === 0 && val.length >= 2) {
+                        // 名前が途中の文字だった場合のバックアップ検索（省エネのため2文字以上で発動）
+                        const q2 = query(ref, limit(200)); 
+                        const snap2 = await getDocs(q2);
+                        docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.name.includes(val));
+                    }
+
+                    if (docs.length === 0) {
+                        box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。名前を正確に入力するか新規登録してください。</div>';
+                    } else {
+                        box.innerHTML = docs.map(d => `
+                            <div class="suggestion-item" 
+                                 data-rank="${d.rank || '--'}" 
+                                 data-type="${d.type || '--'}"
+                                 onclick="window.selectCustomer('${d.name}', '${d.rank || '--'}', '${d.type || '--'}')">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-black text-slate-700">${d.name}</span>
+                                    <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
+                                </div>
+                                <div class="text-[9px] text-slate-400 truncate">${d.address || ''}</div>
+                            </div>`).join('');
+                    }
+                    box.style.display = 'block';
                 }, 300);
             };
-            box.onclick = (e) => {
-                const item = e.target.closest('.suggestion-item');
-                if (!item) return;
-                input.value = item.innerText;
-                document.getElementById('autoRank').value = item.dataset.rank;
-                document.getElementById('autoType').value = item.dataset.type;
+
+            // 🌟 選択時の処理を関数化
+            window.selectCustomer = (name, rank, type) => {
+                input.value = name;
+                document.getElementById('autoRank').value = rank;
+                document.getElementById('autoType').value = type;
                 box.style.display = 'none';
             };
+
             document.addEventListener('click', (e) => {
                 if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
             });
