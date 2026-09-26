@@ -149,6 +149,7 @@
             try {
                 await setDoc(doc(db, "staffs", id), data);
                 alert("社員情報を正常に更新しました！");
+                sessionStorage.removeItem('cp_cache_staffs');
                 location.href = 'staff_list.html';
             } catch (e) {
                 console.error("Save Error:", e);
