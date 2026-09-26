@@ -50,7 +50,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db } from "./common.js";
+        import { db, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, where, limit, doc, updateDoc, addDoc, serverTimestamp, arrayUnion } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         
@@ -155,7 +155,7 @@ async function init() {
                             <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
                             <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p></div>
                             <div><p class="info-label">顧客情報</p><p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p></div>
-                            <div><p class="info-label">所属部署</p><p class="info-value text-[11px] uppercase font-bold">${r.visitorDept || '-'}</p></div>
+                            <div><p class="info-label">所属部署</p><p class="info-value text-[11px] uppercase font-bold">${getDisplayDept(r.visitorDept)}</p></div>
                             <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
                         </div>
 
