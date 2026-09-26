@@ -29,10 +29,14 @@
                             <h1 class="text-3xl lg:text-4xl font-black text-slate-800 tracking-tighter mb-1">実績一覧</h1>
                             <nav class="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Activity History Log</nav>
                         </div>
-                        <select id="deptFilter" onchange="window.executeSearch()" class="scope-select shadow-inner mb-2">
-                            <option value="ALL">全ケコム関連 表示</option>
-                            <option>ケコム部</option><option>関西支店</option><option>関東支店</option><option>中部営業所</option>
-                        </select>
+<select id="deptFilter" onchange="window.executeSearch()" class="scope-select shadow-inner mb-2">
+    <option value="ALL">全社員を表示</option>
+    <option>ケコム部</option>
+    <option>関西支店</option>
+    <option>関東支店</option>
+    <option>中部営業所</option>
+    <option value="OTHER">その他の部署</option>
+</select>
                     </div>
                     <div class="flex flex-wrap gap-2 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 items-center shrink-0 ml-auto">
                         <button onclick="document.getElementById('detailSearchSection').classList.toggle('hidden')" class="px-5 py-2.5 text-slate-500 rounded-xl font-bold text-xs hover:bg-slate-50 flex items-center gap-2 transition-all">
@@ -110,7 +114,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, TARGET_DEPTS } from "./common.js";
+        import { db, TARGET_DEPTS, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -188,37 +192,27 @@
             // =========================================================
 
             try {
-                // =========================================================
-                // ▼▼▼ 修正③：部署条件がある場合はFirestore側で絞る ▼▼▼
-                // 全件500件取得 → JS絞り込みは読み取り数が多い
-                // 部署指定時はFirestore側でwhere絞り込みで読み取り数を削減
-                // =========================================================
+               
                 let q;
-                if (dept !== 'ALL') {
-                    // 部署指定あり：Firestore側でwhere絞り込み（読み取り数削減）
-                    q = query(
-                        collection(db, "activity_records"),
-                        where("visitorDept", "==", dept),
-                        orderBy("visitDate", "desc"),
-                        limit(500)
-                    );
+                const ref = collection(db, "activity_records");
+                
+                // 🌟 修正：メイン部署以外（OTHER）の判定を含むクエリ
+                if (dept !== 'ALL' && dept !== 'OTHER') {
+                    q = query(ref, where("visitorDept", "==", dept), orderBy("visitDate", "desc"), limit(500));
                 } else {
-                    // 全件：日付降順で取得
-                    q = query(
-                        collection(db, "activity_records"),
-                        orderBy("visitDate", "desc"),
-                        limit(500)
-                    );
+                    q = query(ref, orderBy("visitDate", "desc"), limit(500));
                 }
-                // =========================================================
-                // ▲▲▲ 修正③ここまで ▲▲▲
-                // =========================================================
 
                 const snap = await getDocs(q);
                 let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 既存：JS側フィルタ（名寄せ対応）
-                if (dept !== 'ALL') data = data.filter(r => clean(r.visitorDept) === clean(dept));
+                // 🌟 JS側フィルタ：OTHER選択時はメイン部署以外を抽出
+                if (dept === 'OTHER') {
+                    data = data.filter(r => getDisplayDept(r.visitorDept) === "その他の部署");
+                } else if (dept !== 'ALL') {
+                    data = data.filter(r => clean(r.visitorDept) === clean(dept));
+                }
+                
                 if (custK)  data = data.filter(r => (r.customerName || "").includes(custK));
                 if (visiK)  data = data.filter(r => (r.visitorName  || "").includes(visiK));
                 if (startD) data = data.filter(r => normalizeDate(r.visitDate) >= startD);
@@ -321,9 +315,9 @@
                     <td class="p-6 w-[180px] text-slate-700 font-bold">
                         ${data.visitorName || '不明'}
                         <br>
-                        <span class="text-[8px] text-slate-400 uppercase font-black tracking-tighter">
-                            ${data.visitorDept || ''}
-                        </span>
+<span class="text-[8px] text-slate-400 uppercase font-black tracking-tighter">
+    ${getDisplayDept(data.visitorDept)}
+</span>
                     </td>
                     <td class="p-6 text-center">
 
