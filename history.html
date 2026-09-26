@@ -324,6 +324,40 @@
                 setupCustomerSearch();
                 window.addReportBlock();
                 applyUrlParams();
+                                // 🌟 追加：下書きの復元確認
+                const saved = localStorage.getItem('cp_history_draft');
+                if (saved && !new URLSearchParams(window.location.search).get('name')) {
+                    if (confirm("保存されている下書きがあります。復元しますか？")) {
+                        const d = JSON.parse(saved);
+                        document.getElementById('customerSearch').value = d.customerName || '';
+                        document.getElementById('activityType').value = d.activityType || '';
+                        document.getElementById('visitDate').value    = d.visitDate || '';
+                        document.getElementById('startTime').value    = d.startTime || '';
+                        document.getElementById('endTime').value      = d.endTime || '';
+                        document.getElementById('mainCustomerStaffInput').value = d.staffName || '';
+                        document.getElementById('visitorName').value  = d.visitorName || '';
+                        document.getElementById('companionDisplay').value = d.companion || '';
+                        
+                        // 報告ブロックの復元（一度クリアして再生成）
+                        if (d.blocks && d.blocks.length > 0) {
+                            document.getElementById('reportContainer').innerHTML = '';
+                            d.blocks.forEach(() => window.addReportBlock());
+                            setTimeout(() => {
+                                const blocks = document.querySelectorAll('.report-block');
+                                d.blocks.forEach((bData, idx) => {
+                                    const b = blocks[idx];
+                                    if (!b) return;
+                                    b.querySelector('.qual-data-1').value = bData.q1;
+                                    b.querySelector('.qual-data-2').value = bData.q2;
+                                    b.querySelector('.qual-data-3').value = bData.q3;
+                                    b.querySelector('.qual-free').value = bData.free;
+                                    b.querySelector('.customer-report').value = bData.content;
+                                    b.querySelector('.staff-thoughts').value = bData.thoughts;
+                                });
+                            }, 200);
+                        }
+                    }
+                }
             } catch (e) { console.error("init error:", e); }
            
             // 🌟 爆速・親切設計：開始時間を現在時刻、終了時間を15分後に自動セット
@@ -719,12 +753,37 @@ document.getElementById('submitBtnTop').onclick = async () => {
         sessionStorage.removeItem(`cp_history_cache_v2_${clean(customer)}`);
 
         alert("登録完了！");
+        localStorage.removeItem('cp_history_draft'); // 🌟 下書きをクリア
         location.href = 'calendar.html';
     } catch (e) {
         alert("保存エラー: " + e.message);
         btns.forEach(b => { b.disabled = false; b.innerHTML = '登録を実行'; });
     }
 };
+                // 🌟 追加：下書き保存（通信なし・爆速仕様）
+        window.saveDraft = () => {
+            const draftData = {
+                customerName: document.getElementById('customerSearch').value,
+                activityType: document.getElementById('activityType').value,
+                visitDate:    document.getElementById('visitDate').value,
+                startTime:    document.getElementById('startTime').value,
+                endTime:      document.getElementById('endTime').value,
+                staffName:    document.getElementById('mainCustomerStaffInput').value,
+                visitorName:  document.getElementById('visitorName').value,
+                companion:    document.getElementById('companionDisplay').value,
+                // 報告ブロックの内容（複数対応）
+                blocks: [...document.querySelectorAll('.report-block')].map(b => ({
+                    q1: b.querySelector('.qual-data-1').value,
+                    q2: b.querySelector('.qual-data-2').value,
+                    q3: b.querySelector('.qual-data-3').value,
+                    free: b.querySelector('.qual-free').value,
+                    content: b.querySelector('.customer-report').value,
+                    thoughts: b.querySelector('.staff-thoughts').value,
+                }))
+            };
+            localStorage.setItem('cp_history_draft', JSON.stringify(draftData));
+            alert("ブラウザに下書きを保存しました。");
+        };
         init();
     </script>
 </body>
