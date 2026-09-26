@@ -67,24 +67,35 @@
                                 <input type="date" id="dateEnd" class="form-input" onchange="window.updateCount()">
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">訪問者</label>
-                                <select id="visitorFilter" class="form-input" onchange="window.updateCount()">
-                                    <option value="ALL">全員分を出力</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">顧客ランク</label>
-                                <select id="rankFilter" class="form-input" onchange="window.updateCount()">
-                                    <option value="ALL">すべてのランク</option>
-                                    <option>Aa</option><option>Ab</option><option>Ac</option><option>Ad</option>
-                                    <option>Ba</option><option>Bb</option><option>Bc</option><option>Bd</option>
-                                    <option>Ca</option><option>Cb</option><option>Cc</option><option>Cd</option>
-                                    <option>取引先</option><option>合併</option><option>廃業</option>
-                                </select>
-                            </div>
-                        </div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">部署</label>
+        <select id="deptFilter" class="form-input" onchange="window.updateCount()">
+            <option value="ALL">全部署分を出力</option>
+            <option>ケコム部</option>
+            <option>関西支店</option>
+            <option>関東支店</option>
+            <option>中部営業所</option>
+            <option value="OTHER">その他の部署</option>
+        </select>
+    </div>
+    <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">訪問者</label>
+        <select id="visitorFilter" class="form-input" onchange="window.updateCount()">
+            <option value="ALL">全員分を出力</option>
+        </select>
+    </div>
+    <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">顧客ランク</label>
+        <select id="rankFilter" class="form-input" onchange="window.updateCount()">
+            <option value="ALL">すべてのランク</option>
+            <option>Aa</option><option>Ab</option><option>Ac</option><option>Ad</option>
+            <option>Ba</option><option>Bb</option><option>Bc</option><option>Bd</option>
+            <option>Ca</option><option>Cb</option><option>Cc</option><option>Cd</option>
+            <option>取引先</option><option>合併</option><option>廃業</option>
+        </select>
+    </div>
+</div>
                     </div>
                 </div>
 
@@ -126,13 +137,14 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db } from "./common.js";
+        import { db, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, where, orderBy, getCountFromServer } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // 実績登録画面のフィールド名と完全に一致させています
         const COLUMNS = [
             { id: "visitDate", label: "訪問日", default: true },
+            { id: "visitorDept", label: "所属部署", default: true },
             { id: "visitorName", label: "訪問者", default: true },
             { id: "customerName", label: "お客様名", default: true },
             { id: "customerRank", label: "ランク", default: true },
@@ -209,7 +221,7 @@
             const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
             const visitor = document.getElementById('visitorFilter').value;
             const rank = document.getElementById('rankFilter').value;
-
+           
             try {
                 let q = query(
                     collection(db, "activity_records"),
@@ -217,6 +229,9 @@
                     where("visitDate", "<=", end)
                 );
                 
+                const dept = document.getElementById('deptFilter').value;
+                if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+
                 if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
                 if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
@@ -240,11 +255,7 @@
             const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
             const visitor = document.getElementById('visitorFilter').value;
             const rank = document.getElementById('rankFilter').value;
-
-            const selectedCols = Array.from(document.querySelectorAll('#columnGrid input:checked')).map(el => {
-                return COLUMNS.find(c => c.id === el.value);
-            });
-
+           
             try {
                 let q = query(
                     collection(db, "activity_records"),
@@ -252,6 +263,9 @@
                     where("visitDate", "<=", end),
                     orderBy("visitDate", "desc")
                 );
+
+                const dept = document.getElementById('deptFilter').value;
+               if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
                 
                 if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
                 if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
@@ -265,8 +279,9 @@
                 snap.forEach(doc => {
                     const data = doc.data();
                     const row = selectedCols.map(c => {
-                        let val = data[c.id] || "";
-                        // セル内の改行やダブルクォートを適切に処理
+                        // 🌟 修正箇所
+                    let val = data[c.id] || "";
+                    if (c.id === 'visitorDept') val = getDisplayDept(val); // 部署名をクリーンアップ
                         return `"${val.toString().replace(/"/g, '""')}"`;
                     });
                     csvContent += row.join(",") + "\n";
