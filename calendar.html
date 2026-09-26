@@ -80,11 +80,22 @@
         </div>
     </main>
 
-    <div id="staffModal" class="modal-overlay"><div class="modal-content"><div class="bg-slate-900 p-4 text-white flex justify-between items-center"><span class="font-black text-xs uppercase">Select Member</span><i class="fa-solid fa-xmark cursor-pointer" onclick="window.closeModal()"></i></div><div class="p-4 bg-slate-50 border-b border-slate-100"><div class="grid grid-cols-2 gap-2"><input type="text" id="modalSearch" oninput="window.renderModalList()" placeholder="氏名検索..." class="p-2.5 rounded-lg border border-slate-200 text-xs font-bold outline-none"><select id="modalDept" onchange="window.renderModalList()" class="p-2.5 rounded-lg border border-slate-200 text-xs font-bold outline-none"><option value="ALL">全ケコム関連</option><option>ケコム部</option><option>関西支店</option><option>関東支店</option><option>中部営業所</option></select></div></div><div id="modalStaffList" class="max-h-[350px] overflow-y-auto custom-scrollbar"></div><div class="p-4 bg-slate-50 grid grid-cols-2 gap-3"><button onclick="window.applyModal()" class="py-3 bg-[#004098] text-white rounded-xl font-black">決定</button><button onclick="window.clearModal()" class="py-3 bg-white border border-slate-200 rounded-xl font-bold">クリア</button></div></div></div>
+    <div id="staffModal" class="modal-overlay"><div class="modal-content"><div class="bg-slate-900 p-4 text-white flex justify-between items-center"><span class="font-black text-xs uppercase">Select Member</span><i class="fa-solid fa-xmark cursor-pointer" onclick="window.closeModal()"></i></div><div class="p-4 bg-slate-50 border-b border-slate-100"><div class="grid grid-cols-2 gap-2"><input type="text" id="modalSearch" oninput="window.renderModalList()" placeholder="氏名検索..." class="p-2.5 rounded-lg border border-slate-200 text-xs font-bold outline-none">
+<select id="modalDept" onchange="window.renderModalList()" class="p-2.5 rounded-lg border border-slate-200 text-xs font-bold outline-none">
+    <option value="ALL">全社員を表示</option>
+    <option>社長</option>
+    <option>専務</option>
+    <option>ケコム部</option>
+    <option>関西支店</option>
+    <option>関東支店</option>
+    <option>中部営業所</option>
+    <option value="OTHER">その他の部署</option>
+</select>
+    　  </div></div><div id="modalStaffList" class="max-h-[350px] overflow-y-auto custom-scrollbar"></div><div class="p-4 bg-slate-50 grid grid-cols-2 gap-3"><button onclick="window.applyModal()" class="py-3 bg-[#004098] text-white rounded-xl font-black">決定</button><button onclick="window.clearModal()" class="py-3 bg-white border border-slate-200 rounded-xl font-bold">クリア</button></div></div></div>
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, TARGET_DEPTS, watchNotifications } from "./common.js";
+        import { db, TARGET_DEPTS, watchNotifications, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, where, doc, updateDoc, writeBatch, deleteDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         let allStaffs = [], selectedStaffs = JSON.parse(localStorage.getItem('cp_cal_selected_staffs') || "[]");
@@ -244,7 +255,21 @@ watchNotifications((allUnreadList) => {
             const kw = clean(document.getElementById('modalSearch').value.toLowerCase());
             const dept = document.getElementById('modalDept').value;
             const container = document.getElementById('modalStaffList');
-            container.innerHTML = allStaffs.filter(s => (!kw || clean(s.name).toLowerCase().includes(kw)) && (dept === 'ALL' || clean(s.dept) === clean(dept))).map(s => `<div class="staff-item ${selectedStaffs.includes(s.name) ? 'selected' : ''}" onclick="window.toggleModalStaff('${s.name}')"><span>${s.name}</span><span class="text-[9px] opacity-40 font-black">${s.dept || ''}</span></div>`).join('');
+            
+            const filtered = allStaffs.filter(s => {
+                const matchesKw = !kw || clean(s.name).toLowerCase().includes(kw);
+                const displayDept = getDisplayDept(s.dept); 
+
+                if (dept === 'ALL') return matchesKw;
+                if (dept === 'OTHER') return matchesKw && displayDept === "その他の部署";
+                return matchesKw && clean(s.dept) === clean(dept);
+            });
+
+            container.innerHTML = filtered.map(s => `
+                <div class="staff-item ${selectedStaffs.includes(s.name) ? 'selected' : ''}" onclick="window.toggleModalStaff('${s.name}')">
+                    <span>${s.name}</span>
+                    <span class="text-[9px] opacity-40 font-black">${s.dept || ''}</span>
+                </div>`).join('');
         };
         window.toggleModalStaff = (name) => { if (selectedStaffs.includes(name)) selectedStaffs = selectedStaffs.filter(n => n !== name); else selectedStaffs.push(name); window.renderModalList(); };
         window.applyModal = () => { localStorage.setItem('cp_cal_selected_staffs', JSON.stringify(selectedStaffs)); window.updateSelectedDisplay(); window.renderCalendar(); window.closeModal(); };
