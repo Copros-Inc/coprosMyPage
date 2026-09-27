@@ -54,7 +54,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db } from "./common.js";
+        import { db, getDisplayDept } from "./common.js";
         import { collection, getDocs, updateDoc, doc, writeBatch, query, where, orderBy, limit, arrayUnion, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         let myName = sessionStorage.getItem('userName');
        
@@ -180,6 +180,7 @@
                             <p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p>
                         </div>
                         <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
+                        <div><p class="info-label">訪問者の部署</p><p class="info-value">${getDisplayDept(r.visitorDept)}</p></div>
                     </div>
 
                     <!-- 🌟 追記：定性データ分析エリア -->
