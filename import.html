@@ -33,7 +33,7 @@
             <div class="form-card p-8 lg:p-10 mb-8">
                 <div class="flex gap-10 border-b border-slate-100 mb-8">
                     <button onclick="window.switchTab('customers')" id="tab-customers" class="tab-btn tab-customers">お客様名簿</button>
-                    <button onclick="window.switchTab('staffs')" id="tab-staffs" class="tab-btn tab-staffs">組織員名簿</button>
+                    <button onclick="window.switchTab('staffs')" id="tab-staffs" class="tab-btn tab-staffs">社員名簿</button>
                     <button onclick="window.switchTab('activity_records')" id="tab-records" class="tab-btn tab-records active">実績データ</button>
                 </div>
 
@@ -58,8 +58,9 @@
 
 <script type="module" src="common.js"></script>
 <script type="module">
-    import { db } from "./common.js";
-    import { collection, doc, setDoc, addDoc, serverTimestamp, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { db, getDisplayDept } from "./common.js";
+    import { collection, doc, setDoc, addDoc, serverTimestamp, getDocs, query } 
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentMode = 'activity_records';
     let staffMap = new Map();
@@ -112,6 +113,7 @@
         if (!s || s === "0" || s.includes("未訪問")) return "未訪問";
         const parts = s.trim().replace(/\//g, '-').replace(/\s+/g, '-').split('-');
         if (parts.length < 3) return s;
+        // 🌟 2024/09/26 形式に統一（0埋め対応）
         return `${parts[0]}/${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}`;
     };
 
@@ -164,28 +166,35 @@
                 else if (currentMode === 'activity_records') {
                     const startFull = (col[4]||"").trim().split(' ');
                     const endFull = (col[5]||"").trim().split(' ');
-                    const visitorNameClean = (col[6]||"").replace(/\s+/g, '');
-                    const dept = staffMap.get(visitorNameClean) || "不明";
+                    const vName = col[6]?.trim() || "不明";
+                    const visitorNameClean = vName.replace(/\s+/g, '');
+                    
+                    // 🌟 名寄せ：社員名簿から部署を引いた後、新ルールを適用
+                    const rawDept = staffMap.get(visitorNameClean) || "その他の部署";
+                    const dept = getDisplayDept(rawDept);
 
                     await addDoc(collection(db, "activity_records"), {
-                        customerName: col[0]?.trim() || "",
-                        customerRank: col[1]?.trim() || "-",
-                        customerType: col[2]?.trim() || "-",
-                        customerStaff: col[3]?.trim() || "-",
-                        visitDate: cleanDate(startFull[0]),
-                        startTime: startFull[1] || "00:00",
-                        endTime: endFull[1] || "00:00",
-                        visitorName: col[6]?.trim() || "不明",
-                        companion: col[7]?.trim() || "-",
-                        qualData1: col[8]?.trim() || "-",
-                        qualData2: col[9]?.trim() || "-",
-                        qualData3: col[10]?.trim() || "-",
-                        content: col[11]?.trim() || "-",
-                        staffThoughts: col[12]?.trim() || "-",
-                        visitorDept: dept,
-                        createdAt: serverTimestamp()
+                        customerName:      col[0]?.trim() || "",
+                        customerRank:      col[1]?.trim() || "-",
+                        customerAttr:      col[2]?.trim() || "-",
+                        customerStaffName: col[3]?.trim() || "-",
+                        visitDate:         cleanDate(startFull[0]),
+                        startTime:         startFull[1] || "00:00",
+                        endTime:           endFull[1] || "00:00",
+                        visitorName:       vName,
+                        companion:         col[7]?.trim() || "-",
+                        qualData1:         col[8]?.trim() || "-",
+                        qualData2:         col[9]?.trim() || "-",
+                        qualData3:         col[10]?.trim() || "-",
+                        content:           col[11]?.trim() || "-",
+                        staffThoughts:     col[12]?.trim() || "-",
+                        visitorDept:       dept,
+                        readBy:            [],   // 未読状態で開始
+                        comments:          [],   // 空のコメント欄
+                        createdAt:         serverTimestamp()
                     });
                 }
+                    
                 else if (currentMode === 'staffs') {
                     const docId = col[0]?.trim();
                     await setDoc(doc(db, "staffs", docId), {
