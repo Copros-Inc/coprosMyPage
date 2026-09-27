@@ -95,10 +95,16 @@
             <div class="p-4 bg-slate-50 border-b border-slate-100">
                 <div class="grid grid-cols-2 gap-2">
                     <input type="text" id="staffKeyword" oninput="window.renderStaffList()" placeholder="氏名検索..." class="p-3 rounded-lg border border-slate-200 text-xs font-bold outline-none">
-                    <select id="staffDeptFilter" onchange="window.renderStaffList()" class="p-3 rounded-lg border border-slate-200 text-xs font-bold outline-none">
-                        <option value="ALL">全ケコム関連</option>
-                        <option>ケコム部</option><option>関西支店</option><option>関東支店</option><option>中部営業所</option>
-                    </select>
+<select id="staffDeptFilter" onchange="window.renderStaffList()" class="p-3 rounded-lg border border-slate-200 text-xs font-bold outline-none">
+    <option value="ALL">全社員を表示</option>
+    <option>社長</option>
+    <option>専務</option>
+    <option>ケコム部</option>
+    <option>関西支店</option>
+    <option>関東支店</option>
+    <option>中部営業所</option>
+    <option value="OTHER">その他の部署</option>
+</select>
                 </div>
             </div>
             <div id="staffList" class="overflow-y-auto custom-scrollbar" style="height: 320px;"></div>
@@ -111,7 +117,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, TARGET_DEPTS } from "./common.js";
+        import { db, TARGET_DEPTS, getDisplayDept } from "./common.js";
        import { collection, getDocs, addDoc, serverTimestamp, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         let allStaffs = [], modalSelected = [], currentTarget = '';
@@ -140,24 +146,16 @@
 
         window.renderStaffList = () => {
             const kw = clean(document.getElementById('staffKeyword').value.toLowerCase());
-            const dp = document.getElementById('staffDeptFilter').value;
+            const dept = document.getElementById('staffDeptFilter').value;
             const container = document.getElementById('staffList');
             
-            // 🌟 名寄せ・スペースを考慮した最強のフィルタリング
             const filtered = allStaffs.filter(s => {
                 const nameMatch = !kw || clean(s.name).toLowerCase().includes(kw);
-                const sDeptClean = clean(s.dept || "");
-                const dpClean = clean(dp);
+                const displayDept = getDisplayDept(s.dept); // 🌟 社長/専務/その他判定
 
-                let deptMatch = false;
-                if (dp === 'ALL') {
-                    // 「全ケコム関連」の時は、TARGET_DEPTSのどれかに一致すればOK
-                    deptMatch = TARGET_DEPTS.some(t => clean(t) === sDeptClean);
-                } else {
-                    // 特定の部署が選ばれた時は、その部署と一致すればOK
-                    deptMatch = sDeptClean === dpClean;
-                }
-                return nameMatch && deptMatch;
+                if (dept === 'ALL') return nameMatch;
+                if (dept === 'OTHER') return nameMatch && displayDept === "その他の部署";
+                return nameMatch && clean(s.dept) === clean(dept);
             });
             
             container.innerHTML = filtered.map(s => `
@@ -231,10 +229,10 @@
             const custName = document.getElementById('customerSearch').value;
             const appDate = document.getElementById('appointDate').value;
 
-            // 🌟 部署検索を「名寄せ」対応で強化
+            // 🌟 修正：部署判定を getDisplayDept で行う
             const staff = allStaffs.find(s => clean(s.name) === clean(vName));
-            const vDept = staff ? staff.dept : "ケコム部"; // 万が一見つからなくてもデフォルト部署を入れる
-
+            const vDept = staff ? staff.dept : "ケコム部"; 
+                    
             try {
                 // アポイント本体の登録
                 await addDoc(collection(db, "appointments"), {
