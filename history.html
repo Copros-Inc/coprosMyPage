@@ -317,26 +317,31 @@
                 ]);
                 masterOptions = loadedMaster;
                 allStaffs     = loadedStaffs;
+                
                 const deptSelect = document.getElementById('staffDeptFilter');
-                if (typeof TARGET_DEPTS !== 'undefined') {
+                if (typeof TARGET_DEPTS !== 'undefined' && deptSelect) {
                     TARGET_DEPTS.forEach(d => deptSelect.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
                 }
-                setupCustomerSearch();
-                window.addReportBlock();
-                applyUrlParams();
                 
+                setupCustomerSearch();
+                applyUrlParams();
+
+                // 🌟 重要：詳細報告の最初のブロックを作成（ここが消えていました）
+                window.addReportBlock();
+
+                // 🌟 マスタ反映（エラーが起きないよう空チェック付き）
                 if (masterOptions) {
-                    // 訪問内容の選択肢を更新
                     const actSelect = document.getElementById('activityType');
-                    if (actSelect && masterOptions.activityTypes) {
+                    if (actSelect && masterOptions.activityTypes && masterOptions.activityTypes.length > 0) {
                         actSelect.innerHTML = '<option value="">-- 訪問内容 --</option>' + 
                             masterOptions.activityTypes.map(t => `<option value="${t}">${t}</option>`).join('');
                     }
-                    // 自由項目のプレビューラベルも更新
+                    // 自由項目のプレビューラベル更新
                     document.querySelectorAll('.qual-free').forEach(el => {
                         el.placeholder = `(${masterOptions.freeLabel || '自由入力'})`;
                     });
                 }
+                
             } catch (e) { console.error("init error:", e); }
                 
                                 // 🌟 追加：下書きの復元確認
