@@ -146,6 +146,20 @@
 
         const editId = sessionStorage.getItem('cp_edit_customer_id');
 
+        // 🌟 追加：マスタ設定から「お客様区分」を読み込む
+        async function loadMasterTypes() {
+            try {
+                const snap = await getDoc(doc(db, "master_settings", "qual_options"));
+                const typeSelect = document.getElementById('type');
+                if (snap.exists() && typeSelect) {
+                    const d = snap.data();
+                    typeSelect.innerHTML = '<option value="">カテゴリ未設定</option>' + 
+                        (d.custSegments || []).map(s => `<option value="${s}">${s}</option>`).join('');
+                }
+            } catch (e) { console.error("Master Load Error:", e); }
+        }
+        
+
         // 🌟 編集モードの初期化
         async function checkEditMode() {
             if (!editId) return;
@@ -222,6 +236,8 @@
 
         document.getElementById('saveBtnTop').onclick = handleSave;
         document.getElementById('saveBtnBottom').onclick = handleSave;
+        
+        loadMasterTypes();
         checkEditMode();
     </script>
 </body>
