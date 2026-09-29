@@ -301,7 +301,6 @@
 
         async function init() {
             try {
-                // 基本情報のセット
                 document.getElementById('visitorName').value = sessionStorage.getItem('userName') || "";
                 const jumpDate = sessionStorage.getItem('cp_add_date');
                 if (jumpDate) { 
@@ -310,20 +309,17 @@
                 } else { 
                     document.getElementById('visitDate').valueAsDate = new Date(); 
                 }
-
                 if (localStorage.getItem('cp_keep_circular') === 'true') {
                     document.getElementById('keepCircular').checked = true;
                     document.getElementById('circularDisplay').innerText = localStorage.getItem('cp_last_circular') || '未選択';
                 }
 
-                // マスタとスタッフデータのロード
                 const [loadedMaster, loadedStaffs] = await Promise.all([
                     loadMasterOptionsWithCache(), loadStaffsWithCache()
                 ]);
                 masterOptions = loadedMaster;
                 allStaffs = loadedStaffs;
                 
-                // 部署フィルタのセット
                 const deptSelect = document.getElementById('staffDeptFilter');
                 if (typeof TARGET_DEPTS !== 'undefined' && deptSelect) {
                     TARGET_DEPTS.forEach(d => deptSelect.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
@@ -332,20 +328,19 @@
                 setupCustomerSearch();
                 applyUrlParams();
 
-                // 🌟 重要：マスタ反映（訪問内容）
+                // 🌟 マスタ反映（訪問内容）
                 const actSelect = document.getElementById('activityType');
                 if (actSelect && masterOptions.activityTypes && masterOptions.activityTypes.length > 0) {
                     actSelect.innerHTML = '<option value="">-- 訪問内容 --</option>' + 
                         masterOptions.activityTypes.map(t => `<option value="${t}">${t}</option>`).join('');
                 }
 
-                // 🌟 重要：詳細報告の最初のブロックを作成（ここが確実に実行されるようにする）
+                // 🌟 詳細報告の初期ブロック
                 window.addReportBlock();
 
-                // 下書き復元処理
                 const saved = localStorage.getItem('cp_history_draft');
                 if (saved && !new URLSearchParams(window.location.search).get('name')) {
-                    if (confirm("保存されている下書きがあります。復元しますか？")) {
+                    if (confirm("下書きを復元しますか？")) {
                         const d = JSON.parse(saved);
                         document.getElementById('customerSearch').value = d.customerName || '';
                         document.getElementById('activityType').value = d.activityType || '';
@@ -355,7 +350,6 @@
                         document.getElementById('mainCustomerStaffInput').value = d.staffName || '';
                         document.getElementById('visitorName').value = d.visitorName || '';
                         document.getElementById('companionDisplay').value = d.companion || '';
-                        
                         if (d.blocks && d.blocks.length > 0) {
                             document.getElementById('reportContainer').innerHTML = '';
                             d.blocks.forEach(() => window.addReportBlock());
@@ -375,8 +369,6 @@
                         }
                     }
                 }
-
-                // 開始・終了時間の自動セット
                 const startTimeEl = document.getElementById('startTime');
                 const endTimeEl = document.getElementById('endTime');
                 if (startTimeEl && !startTimeEl.value) {
@@ -385,34 +377,9 @@
                     now.setMinutes(now.getMinutes() + 15);
                     endTimeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 }
-
-            } catch (e) { 
-                console.error("init error:", e); 
-            }
+            } catch (e) { console.error("init error:", e); }
         }
-           
-            // 🌟 爆速・親切設計：開始時間を現在時刻、終了時間を15分後に自動セット
-            const startTimeEl = document.getElementById('startTime');
-            const endTimeEl   = document.getElementById('endTime');
-            if (startTimeEl && !startTimeEl.value) {
-                const now = new Date();
-                const hh = String(now.getHours()).padStart(2, '0');
-                const mm = String(now.getMinutes()).padStart(2, '0');
-                startTimeEl.value = `${hh}:${mm}`;
 
-                // 15分後を計算
-                now.setMinutes(now.getMinutes() + 15);
-                const ehh = String(now.getHours()).padStart(2, '0');
-                const emm = String(now.getMinutes()).padStart(2, '0');
-                endTimeEl.value = `${ehh}:${emm}`;
-            }
-        }
-        
-
-        // =========================================================
-        // addReportBlock
-        // =========================================================
-        
         window.syncAllStaffSelects = (val) => {
             const names = val.split(/[,、\s\u3000]+/).filter(n => n.trim() !== "");
             const selects = document.querySelectorAll('.customer-staff-dropdown');
