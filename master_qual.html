@@ -23,21 +23,32 @@
                     <p class="text-xs font-bold text-slate-400 uppercase italic">Master Option Management</p>
                 </div>
 
-                <div class="grid grid-cols-1 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div class="config-card">
-                        <span class="label-badge">定性データ 1 (例: リサーチ情報、ニーズ...)</span>
-                        <textarea id="qual1" class="tag-input h-32" placeholder="1行に1項目ずつ入力してください"></textarea>
+                        <span class="label-badge text-blue-500">お客様区分（マスタ）</span>
+                        <textarea id="custSegments" class="tag-input h-32" placeholder="官庁&#13;&#10;コンサル..."></textarea>
                     </div>
                     <div class="config-card">
-                        <span class="label-badge">定性データ 2 (例: 担当製品、工法...)</span>
-                        <textarea id="qual2" class="tag-input h-32" placeholder="1行に1項目ずつ入力してください"></textarea>
+                        <span class="label-badge text-orange-500">訪問内容（マスタ）</span>
+                        <textarea id="activityTypes" class="tag-input h-32" placeholder="定期訪問&#13;&#10;案件営業..."></textarea>
                     </div>
                     <div class="config-card">
-                        <span class="label-badge">定性データ 3 (例: 地域、支店...)</span>
-                        <textarea id="qual3" class="tag-input h-32" placeholder="1行に1項目ずつ入力してください"></textarea>
+                        <span class="label-badge">定性データ 1</span>
+                        <textarea id="qual1" class="tag-input h-32"></textarea>
+                    </div>
+                    <div class="config-card">
+                        <span class="label-badge">定性データ 2</span>
+                        <textarea id="qual2" class="tag-input h-32"></textarea>
+                    </div>
+                    <div class="config-card">
+                        <span class="label-badge">定性データ 3</span>
+                        <textarea id="qual3" class="tag-input h-32"></textarea>
+                    </div>
+                    <div class="config-card bg-slate-50">
+                        <span class="label-badge text-slate-400">自由項目のラベル名</span>
+                        <input type="text" id="freeLabel" class="tag-input" placeholder="例: 金額の記入">
                     </div>
                 </div>
-
                 <div class="mt-8 flex justify-center">
                     <button onclick="window.saveOptions()" id="saveBtn" class="px-20 py-4 bg-[#004098] text-white rounded-2xl font-black shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center gap-3">
                         <i class="fa-solid fa-cloud-arrow-up"></i> 設定を保存する
@@ -56,10 +67,13 @@
             try {
                 const snap = await getDoc(doc(db, "master_settings", "qual_options"));
                 if (snap.exists()) {
-                    const data = snap.data();
-                    document.getElementById('qual1').value = data.qual1.join('\n');
-                    document.getElementById('qual2').value = data.qual2.join('\n');
-                    document.getElementById('qual3').value = data.qual3.join('\n');
+                    const d = snap.data();
+                    document.getElementById('custSegments').value = (d.custSegments || []).join('\n');
+                    document.getElementById('activityTypes').value = (d.activityTypes || []).join('\n');
+                    document.getElementById('qual1').value = (d.qual1 || []).join('\n');
+                    document.getElementById('qual2').value = (d.qual2 || []).join('\n');
+                    document.getElementById('qual3').value = (d.qual3 || []).join('\n');
+                    document.getElementById('freeLabel').value = d.freeLabel || "金額の記入";
                 }
             } catch (e) { console.error(e); }
         }
@@ -70,21 +84,22 @@
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
 
             const data = {
+                custSegments: document.getElementById('custSegments').value.split('\n').filter(s => s.trim() !== ""),
+                activityTypes: document.getElementById('activityTypes').value.split('\n').filter(s => s.trim() !== ""),
                 qual1: document.getElementById('qual1').value.split('\n').filter(s => s.trim() !== ""),
                 qual2: document.getElementById('qual2').value.split('\n').filter(s => s.trim() !== ""),
                 qual3: document.getElementById('qual3').value.split('\n').filter(s => s.trim() !== ""),
+                freeLabel: document.getElementById('freeLabel').value.trim() || "金額の記入",
                 updatedAt: serverTimestamp()
             };
 
             try {
                 await setDoc(doc(db, "master_settings", "qual_options"), data);
-                alert("設定を保存しました。実績登録画面に反映されます。");
-            } catch (e) {
-                alert("保存に失敗しました。制限リセットをお待ちください。");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 設定を保存する';
-            }
+                // 🌟 キャッシュを破棄して即時反映させる
+                localStorage.removeItem('cp_master_qual_options');
+                alert("全ての設定を保存しました。登録画面に自動反映されます。");
+            } catch (e) { alert("エラー: " + e.message); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 設定を保存する'; }
         };
 
         init();
