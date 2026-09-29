@@ -299,25 +299,31 @@
             return data;
         }
 
-        // =========================================================
-        // init
-        // =========================================================
         async function init() {
-            document.getElementById('visitorName').value = sessionStorage.getItem('userName') || "";
-            const jumpDate = sessionStorage.getItem('cp_add_date');
-            if (jumpDate) { document.getElementById('visitDate').value = jumpDate; sessionStorage.removeItem('cp_add_date'); }
-            else { document.getElementById('visitDate').valueAsDate = new Date(); }
-            if (localStorage.getItem('cp_keep_circular') === 'true') {
-                document.getElementById('keepCircular').checked     = true;
-                document.getElementById('circularDisplay').innerText = localStorage.getItem('cp_last_circular') || '未選択';
-            }
             try {
+                // 基本情報のセット
+                document.getElementById('visitorName').value = sessionStorage.getItem('userName') || "";
+                const jumpDate = sessionStorage.getItem('cp_add_date');
+                if (jumpDate) { 
+                    document.getElementById('visitDate').value = jumpDate; 
+                    sessionStorage.removeItem('cp_add_date'); 
+                } else { 
+                    document.getElementById('visitDate').valueAsDate = new Date(); 
+                }
+
+                if (localStorage.getItem('cp_keep_circular') === 'true') {
+                    document.getElementById('keepCircular').checked = true;
+                    document.getElementById('circularDisplay').innerText = localStorage.getItem('cp_last_circular') || '未選択';
+                }
+
+                // マスタとスタッフデータのロード
                 const [loadedMaster, loadedStaffs] = await Promise.all([
                     loadMasterOptionsWithCache(), loadStaffsWithCache()
                 ]);
                 masterOptions = loadedMaster;
-                allStaffs     = loadedStaffs;
+                allStaffs = loadedStaffs;
                 
+                // 部署フィルタのセット
                 const deptSelect = document.getElementById('staffDeptFilter');
                 if (typeof TARGET_DEPTS !== 'undefined' && deptSelect) {
                     TARGET_DEPTS.forEach(d => deptSelect.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
@@ -326,39 +332,30 @@
                 setupCustomerSearch();
                 applyUrlParams();
 
-                // 🌟 重要：詳細報告の最初のブロックを作成（ここが消えていました）
+                // 🌟 重要：マスタ反映（訪問内容）
+                const actSelect = document.getElementById('activityType');
+                if (actSelect && masterOptions.activityTypes && masterOptions.activityTypes.length > 0) {
+                    actSelect.innerHTML = '<option value="">-- 訪問内容 --</option>' + 
+                        masterOptions.activityTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+
+                // 🌟 重要：詳細報告の最初のブロックを作成（ここが確実に実行されるようにする）
                 window.addReportBlock();
 
-                // 🌟 マスタ反映（エラーが起きないよう空チェック付き）
-                if (masterOptions) {
-                    const actSelect = document.getElementById('activityType');
-                    if (actSelect && masterOptions.activityTypes && masterOptions.activityTypes.length > 0) {
-                        actSelect.innerHTML = '<option value="">-- 訪問内容 --</option>' + 
-                            masterOptions.activityTypes.map(t => `<option value="${t}">${t}</option>`).join('');
-                    }
-                    // 自由項目のプレビューラベル更新
-                    document.querySelectorAll('.qual-free').forEach(el => {
-                        el.placeholder = `(${masterOptions.freeLabel || '自由入力'})`;
-                    });
-                }
-                
-            } catch (e) { console.error("init error:", e); }
-                
-                                // 🌟 追加：下書きの復元確認
+                // 下書き復元処理
                 const saved = localStorage.getItem('cp_history_draft');
                 if (saved && !new URLSearchParams(window.location.search).get('name')) {
                     if (confirm("保存されている下書きがあります。復元しますか？")) {
                         const d = JSON.parse(saved);
                         document.getElementById('customerSearch').value = d.customerName || '';
                         document.getElementById('activityType').value = d.activityType || '';
-                        document.getElementById('visitDate').value    = d.visitDate || '';
-                        document.getElementById('startTime').value    = d.startTime || '';
-                        document.getElementById('endTime').value      = d.endTime || '';
+                        document.getElementById('visitDate').value = d.visitDate || '';
+                        document.getElementById('startTime').value = d.startTime || '';
+                        document.getElementById('endTime').value = d.endTime || '';
                         document.getElementById('mainCustomerStaffInput').value = d.staffName || '';
-                        document.getElementById('visitorName').value  = d.visitorName || '';
+                        document.getElementById('visitorName').value = d.visitorName || '';
                         document.getElementById('companionDisplay').value = d.companion || '';
                         
-                        // 報告ブロックの復元（一度クリアして再生成）
                         if (d.blocks && d.blocks.length > 0) {
                             document.getElementById('reportContainer').innerHTML = '';
                             d.blocks.forEach(() => window.addReportBlock());
@@ -378,7 +375,21 @@
                         }
                     }
                 }
-            } catch (e) { console.error("init error:", e); }
+
+                // 開始・終了時間の自動セット
+                const startTimeEl = document.getElementById('startTime');
+                const endTimeEl = document.getElementById('endTime');
+                if (startTimeEl && !startTimeEl.value) {
+                    const now = new Date();
+                    startTimeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    now.setMinutes(now.getMinutes() + 15);
+                    endTimeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                }
+
+            } catch (e) { 
+                console.error("init error:", e); 
+            }
+        }
            
             // 🌟 爆速・親切設計：開始時間を現在時刻、終了時間を15分後に自動セット
             const startTimeEl = document.getElementById('startTime');
@@ -435,7 +446,7 @@
                             <select class="qual-data-1 form-input text-[10px] font-bold"><option value="">(定性データ1)</option>${q1}</select>
                             <select class="qual-data-2 form-input text-[10px] font-bold"><option value="">(定性データ2)</option>${q2}</select>
                             <select class="qual-data-3 form-input text-[10px] font-bold"><option value="">(定性データ3)</option>${q3}</select>
-                            <input type="text" class="qual-free form-input text-[10px] font-bold" placeholder="(自由入力)">
+                            <input type="text" class="qual-free form-input text-[10px] font-bold" placeholder="(${masterOptions.freeLabel || '自由入力'})">
                         </div>
                         <textarea class="customer-report form-input h-32 resize-none" placeholder="要望、状況など"></textarea>
                     </div>
