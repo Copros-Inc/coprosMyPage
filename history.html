@@ -324,6 +324,21 @@
                 setupCustomerSearch();
                 window.addReportBlock();
                 applyUrlParams();
+                
+                if (masterOptions) {
+                    // 訪問内容の選択肢を更新
+                    const actSelect = document.getElementById('activityType');
+                    if (actSelect && masterOptions.activityTypes) {
+                        actSelect.innerHTML = '<option value="">-- 訪問内容 --</option>' + 
+                            masterOptions.activityTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+                    }
+                    // 自由項目のプレビューラベルも更新
+                    document.querySelectorAll('.qual-free').forEach(el => {
+                        el.placeholder = `(${masterOptions.freeLabel || '自由入力'})`;
+                    });
+                }
+            } catch (e) { console.error("init error:", e); }
+                
                                 // 🌟 追加：下書きの復元確認
                 const saved = localStorage.getItem('cp_history_draft');
                 if (saved && !new URLSearchParams(window.location.search).get('name')) {
