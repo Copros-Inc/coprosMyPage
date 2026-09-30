@@ -63,9 +63,8 @@
 <script type="module" src="common.js"></script>
 <script type="module">
     import { db, getDisplayDept } from "./common.js";
-    import { collection, doc, setDoc, addDoc, writeBatch, serverTimestamp, getDocs, query } 
-        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+    import { collection, doc, setDoc, addDoc, writeBatch, serverTimestamp, getDocs, query, limit } 
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     let currentMode = 'activity_records';
     let staffMap = new Map();
 
