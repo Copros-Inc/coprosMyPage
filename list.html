@@ -129,6 +129,19 @@
         // =========================================================
 
         async function init() {
+            // 🌟 マスタ設定から「属性・区分」を動的に反映
+            try {
+                const masterJSON = localStorage.getItem('cp_master_qual_options');
+                if (masterJSON) {
+                    const master = JSON.parse(masterJSON);
+                    const typeSelect = document.getElementById('detailType');
+                    if (typeSelect && master.custSegments) {
+                        typeSelect.innerHTML = '<option value="">全て</option>' + 
+                            master.custSegments.map(s => `<option value="${s}">${s}</option>`).join('');
+                    }
+                }
+            } catch (e) { console.error("Master load error:", e); }
+
             window.executeSearch();
         }
 
