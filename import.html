@@ -47,6 +47,10 @@
                 <button id="importBtn" class="w-full py-5 text-white rounded-2xl font-black shadow-lg transition-all active:scale-[0.98]">
                     インポートを開始する
                 </button>
+                <!-- 🌟 追加：全削除ボタン -->
+                <button id="deleteBtn" class="w-full py-3 mt-4 text-rose-500 border-2 border-rose-500 rounded-2xl font-black hover:bg-rose-50 transition-all active:scale-[0.98]">
+                    選択中のカテゴリを全削除する
+                </button>                
             </div>
 
             <div class="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-20">
@@ -59,7 +63,7 @@
 <script type="module" src="common.js"></script>
 <script type="module">
     import { db, getDisplayDept } from "./common.js";
-    import { collection, doc, setDoc, addDoc, serverTimestamp, getDocs, query } 
+    import { collection, doc, setDoc, addDoc, writeBatch, serverTimestamp, getDocs, query } 
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     let currentMode = 'activity_records';
@@ -136,12 +140,11 @@
         const rawData = document.getElementById('csvData').value.trim();
         if (!rawData) return alert("データがありません。");
         
-        // 🌟 改良したパーサーで行を正確に切り出す
         const rows = parseCSV(rawData);
         const total = rows.length;
         const btn = document.getElementById('importBtn');
         
-        if(!confirm(`${total}件のインポートを開始しますか？`)) return;
+        if(!confirm(`${total}件のインポートを開始しますか？\n※50件ずつのバッチ処理で高速実行します。`)) return;
 
         btn.disabled = true;
         document.getElementById('statusLog').innerHTML = "";
@@ -151,29 +154,36 @@
         const sSnap = await getDocs(collection(db, "staffs"));
         sSnap.forEach(d => staffMap.set(d.data().name.replace(/\s+/g, ''), d.data().dept || "不明"));
 
+        let batch = writeBatch(db);
+        let count = 0;
+
         for (let i = 0; i < rows.length; i++) {
             const col = rows[i];
             try {
+                // currentMode (customers 等) に応じてリファレンスを作成
+                const ref = doc(collection(db, currentMode));
+
                 if (currentMode === 'customers') {
-                    await addDoc(collection(db, "customers"), {
-                        name: col[0]?.trim() || "", kana: col[1]?.trim() || "",
-                        rank: col[2]?.trim() || "-", type: col[3]?.trim() || "-",
-                        address: col[4]?.trim() || "", tel: col[5]?.trim() || "",
-                        visitCount: parseInt(col[6]) || 0, lastVisit: cleanDate(col[7]),
+                    batch.set(ref, {
+                        name: col[0]?.trim() || "", 
+                        kana: col[1]?.trim() || "",
+                        rank: col[2]?.trim() || "-", 
+                        type: col[3]?.trim() || "-",
+                        address: col[4]?.trim() || "", 
+                        tel: col[5]?.trim() || "",
+                        visitCount: parseInt(col[6]) || 0, 
+                        lastVisitDate: cleanDate(col[7]), // 🌟 lastVisitDate に修正
                         updatedAt: serverTimestamp()
                     });
                 } 
                 else if (currentMode === 'activity_records') {
                     const startFull = (col[4]||"").trim().split(' ');
                     const endFull = (col[5]||"").trim().split(' ');
-                    const vName = col[6]?.trim() || "不明";
-                    const visitorNameClean = vName.replace(/\s+/g, '');
-                    
-                    // 🌟 名寄せ：社員名簿から部署を引いた後、新ルールを適用
+                    const visitorNameClean = (col[6]||"").replace(/\s+/g, '');
                     const rawDept = staffMap.get(visitorNameClean) || "その他の部署";
                     const dept = getDisplayDept(rawDept);
 
-                    await addDoc(collection(db, "activity_records"), {
+                    batch.set(ref, {
                         customerName:      col[0]?.trim() || "",
                         customerRank:      col[1]?.trim() || "-",
                         customerAttr:      col[2]?.trim() || "-",
@@ -181,7 +191,7 @@
                         visitDate:         cleanDate(startFull[0]),
                         startTime:         startFull[1] || "00:00",
                         endTime:           endFull[1] || "00:00",
-                        visitorName:       vName,
+                        visitorName:       col[6]?.trim() || "不明",
                         companion:         col[7]?.trim() || "-",
                         qualData1:         col[8]?.trim() || "-",
                         qualData2:         col[9]?.trim() || "-",
@@ -189,26 +199,56 @@
                         content:           col[11]?.trim() || "-",
                         staffThoughts:     col[12]?.trim() || "-",
                         visitorDept:       dept,
-                        readBy:            [],   // 未読状態で開始
-                        comments:          [],   // 空のコメント欄
-                        createdAt:         serverTimestamp()
+                        readBy:            [], createdAt: serverTimestamp()
                     });
                 }
-                    
-                else if (currentMode === 'staffs') {
-                    const docId = col[0]?.trim();
-                    await setDoc(doc(db, "staffs", docId), {
-                        id: docId, name: col[1]?.trim(), password: col[2]?.trim(),
-                        email: col[3]?.trim(), role: col[4]?.trim(),
-                        status: col[5]?.trim(), dept: col[6]?.trim(), updatedAt: serverTimestamp()
-                    });
+                
+                count++;
+                // 50件ごとに書き込み実行
+                if (count === 50 || i === rows.length - 1) {
+                    await batch.commit();
+                    log(`${i + 1} / ${total} 件完了...`);
+                    batch = writeBatch(db);
+                    count = 0;
                 }
-                if ((i + 1) % 10 === 0) log(`${i+1} / ${total} 件完了...`);
             } catch (e) { log(`${i+1}行目エラー: ${e.message}`, "error"); }
         }
-        log("全ての処理が完了しました！", "info");
+        log("全てのインポート処理が完了しました！", "info");
         btn.disabled = false;
         alert("インポートが完了しました。");
+    };
+
+    // 🌟 追加：全削除ロジック
+    document.getElementById('deleteBtn').onclick = async () => {
+        const mode = currentMode;
+        if (!confirm(`【警告】${mode} の全データを削除しますか？`)) return;
+
+        const btn = document.getElementById('deleteBtn');
+        btn.disabled = true;
+        btn.innerText = "削除中...";
+
+        try {
+            const snap = await getDocs(collection(db, mode));
+            let batch = writeBatch(db);
+            let count = 0;
+            let deleted = 0;
+
+            for (const docSnap of snap.docs) {
+                batch.delete(docSnap.ref);
+                count++;
+                deleted++;
+                if (count === 50) {
+                    await batch.commit();
+                    log(`${deleted} 件削除完了...`);
+                    batch = writeBatch(db);
+                    count = 0;
+                }
+            }
+            if (count > 0) await batch.commit();
+            log(`全 ${deleted} 件の削除が完了しました。`, "info");
+            alert("削除が完了しました。");
+        } catch (e) { alert("削除エラー: " + e.message); }
+        finally { btn.disabled = false; btn.innerText = "選択中のカテゴリを全削除する"; }
     };
     window.switchTab('activity_records');
 </script>
