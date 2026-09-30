@@ -218,38 +218,36 @@
         alert("インポートが完了しました。");
     };
 
-    // 🌟 追加：全削除ロジック
     document.getElementById('deleteBtn').onclick = async () => {
         const mode = currentMode;
-        if (!confirm(`【警告】${mode} の全データを削除しますか？`)) return;
+        if (!confirm(`【警告】${mode} の全データを安全に削除しますか？`)) return;
 
         const btn = document.getElementById('deleteBtn');
         btn.disabled = true;
         btn.innerText = "削除中...";
 
         try {
-            const snap = await getDocs(collection(db, mode));
-            let batch = writeBatch(db);
-            let count = 0;
-            let deleted = 0;
+            let totalDeleted = 0;
+            while (true) {
+                // 🌟 500件ずつ取得（ブラウザを固めないコツ）
+                const q = query(collection(db, mode), limit(500));
+                const snap = await getDocs(q);
+                if (snap.empty) break;
 
-            for (const docSnap of snap.docs) {
-                batch.delete(docSnap.ref);
-                count++;
-                deleted++;
-                if (count === 50) {
-                    await batch.commit();
-                    log(`${deleted} 件削除完了...`);
-                    batch = writeBatch(db);
-                    count = 0;
-                }
+                const batch = writeBatch(db);
+                snap.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+
+                totalDeleted += snap.size;
+                log(`${totalDeleted} 件まで削除完了...`);
+                await new Promise(r => setTimeout(r, 200)); // 負荷分散
             }
-            if (count > 0) await batch.commit();
-            log(`全 ${deleted} 件の削除が完了しました。`, "info");
+            log(`全 ${totalDeleted} 件の削除が完了しました。`, "info");
             alert("削除が完了しました。");
         } catch (e) { alert("削除エラー: " + e.message); }
         finally { btn.disabled = false; btn.innerText = "選択中のカテゴリを全削除する"; }
     };
+    
     window.switchTab('activity_records');
 </script>
 </body>
