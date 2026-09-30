@@ -165,7 +165,7 @@
                 let q;
 
                 if (kana !== 'all') {
-                    // 🌟 カナ検索（あ〜わ行の範囲指定）
+                    // 🌟 カナ検索（これまで通り）
                     const range = {
                         'あ': ['ア', 'カ'], 'か': ['カ', 'サ'], 'さ': ['サ', 'タ'],
                         'た': ['タ', 'ナ'], 'な': ['ナ', 'ハ'], 'は': ['ハ', 'マ'],
@@ -174,20 +174,24 @@
                     };
                     const [start, end] = range[kana] || [kana, String.fromCharCode(kana.charCodeAt(0) + 1)];
                     q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"));
-                } else if (name || addr || rank || type) {
-                    // 🌟 詳細検索（1000件取得してメモリ内フィルタ）
-                    q = query(ref, limit(1000));
+                } else if (name) {
+                    // 🌟 名前検索：前方一致で全件から探す（爆速・省エネ）
+                    q = query(ref, where("name", ">=", name), where("name", "<=", name + '\uf8ff'), orderBy("name"));
+                } else if (addr) {
+                    // 🌟 住所検索：前方一致で全件から探す（爆速・省エネ）
+                    q = query(ref, where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'), orderBy("address"));
                 } else {
-                    // 🌟 初期表示
-                    q = query(ref, orderBy("updatedAt", "desc"), limit(200));
+                    // 🌟 初期表示・ランク・属性：最終訪問日が新しい順（近日が上）
+                    let constraints = [orderBy("lastVisitDate", "desc"), limit(200)];
+                    if (rank) constraints.unshift(where("rank", "==", rank));
+                    if (type) constraints.unshift(where("type", "==", type));
+                    q = query(ref, ...constraints);
                 }
 
                 const snap = await getDocs(q);
                 let results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 🌟 メモリ内フィルタリング（インデックスエラー回避・爆速）
-                if (name) results = results.filter(r => (r.name || "").includes(name) || (r.kana || "").includes(name));
-                if (addr) results = results.filter(r => (r.address || "").includes(addr));
+                // メモリ内補助フィルタ（クエリで絞りきれない属性用）
                 if (rank) results = results.filter(r => r.rank === rank);
                 if (type) results = results.filter(r => r.type === type);
                 
