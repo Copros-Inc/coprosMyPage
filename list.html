@@ -141,6 +141,11 @@
             const rank = document.getElementById('detailRank').value;
             const type = document.getElementById('detailType').value;
 
+            // 🌟 144行目の直後に追加：詳細検索時はキャッシュをクリアして最新を得る
+            if (name || addr || rank || type) {
+                const currentCacheKey = getCacheKey(kana, name, addr, rank, type);
+                sessionStorage.removeItem(currentCacheKey);
+            }
             // =========================================================
             // ▼▼▼ 追加：キャッシュチェック（Firebase通信ゼロ化）▼▼▼
             // =========================================================
@@ -157,42 +162,34 @@
 
             try {
                 const ref = collection(db, "customers");
-                let q = query(ref, orderBy("updatedAt", "desc"), limit(100));
+                let q;
 
-                // 既存：条件がある時だけピンポイントで取得
-                // 🌟 修正：行ごとの範囲を正確に定義（あ〜お等）
-                if (kana !== 'all' && kana !== '他') {
+                if (kana !== 'all') {
+                    // 🌟 カナ検索（あ〜わ行の範囲指定）
                     const range = {
                         'あ': ['ア', 'カ'], 'か': ['カ', 'サ'], 'さ': ['サ', 'タ'],
                         'た': ['タ', 'ナ'], 'な': ['ナ', 'ハ'], 'は': ['ハ', 'マ'],
                         'ま': ['マ', 'ヤ'], 'や': ['ヤ', 'ラ'], 'ら': ['ラ', 'ワ'],
-                        'わ': ['ワ', 'ン']
+                        'わ': ['ワ', 'ン'], '他': ['!', 'ア']
                     };
                     const [start, end] = range[kana] || [kana, String.fromCharCode(kana.charCodeAt(0) + 1)];
-                    q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"), limit(200));
-                } else if (kana === '他') {
-                    q = query(ref, where("kana", "<", "ア"), orderBy("kana"), limit(200));
+                    q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"));
                 } else if (name || addr || rank || type) {
-                    // 🌟 修正：全体検索を可能にする動的クエリ（前方一致優先）
-                    let constraints = [orderBy("updatedAt", "desc"), limit(200)];
-                    if (name) constraints = [where("name", ">=", name), where("name", "<=", name + '\uf8ff'), orderBy("name"), limit(200)];
-                    else if (addr) constraints = [where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'), orderBy("address"), limit(200)];
-                    else {
-                        if (rank) constraints.unshift(where("rank", "==", rank));
-                        if (type) constraints.unshift(where("type", "==", type));
-                    }
-                    q = query(ref, ...constraints);
+                    // 🌟 詳細検索（1000件取得してメモリ内フィルタ）
+                    q = query(ref, limit(1000));
+                } else {
+                    // 🌟 初期表示
+                    q = query(ref, orderBy("updatedAt", "desc"), limit(200));
                 }
 
                 const snap = await getDocs(q);
                 let results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 🌟 メモリ内フィルタリング（省エネ：1回の通信で得た結果をさらに精査）
-                if (rank && !q._query.filters.some(f => f.field.path === 'rank')) results = results.filter(r => r.rank === rank);
-                if (type && !q._query.filters.some(f => f.field.path === 'type')) results = results.filter(r => r.type === type);
-
-                if (name) results = results.filter(r => (r.name || "").includes(name));
+                // 🌟 メモリ内フィルタリング（インデックスエラー回避・爆速）
+                if (name) results = results.filter(r => (r.name || "").includes(name) || (r.kana || "").includes(name));
                 if (addr) results = results.filter(r => (r.address || "").includes(addr));
+                if (rank) results = results.filter(r => r.rank === rank);
+                if (type) results = results.filter(r => r.type === type);
                 
                 allCustomers = results;
                 // ▼ 取得データをキャッシュ保存 ▼
@@ -244,7 +241,7 @@
                     <td class="p-6 text-slate-500 font-mono text-xs text-center">${data.tel || '-'}</td>
                     <td class="p-6 text-left text-[10px] text-slate-400 truncate max-w-[200px] font-medium">${data.address || '-'}</td>
                     <td class="p-6 text-center"><span class="visit-badge">${data.visitCount || 0}回</span></td>
-                    <td class="p-6 text-center text-slate-400 text-[10px] font-black uppercase">${data.lastVisit || '未訪問'}</td>
+                    <td class="p-6 text-center text-slate-400 text-[10px] font-black uppercase">${data.lastVisitDate || '未訪問'}</td>
                     <td class="p-6 text-center">
                         <input type="checkbox" class="customer-check w-5 h-5 accent-[#004098] rounded-md cursor-pointer" data-id="${data.id}">
                     </td>
