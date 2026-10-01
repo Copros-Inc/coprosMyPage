@@ -237,7 +237,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, TARGET_DEPTS } from "./common.js";
-        import { collection, getDocs, getDoc, addDoc, doc, serverTimestamp, query, where, limit, orderBy }
+        import { collection, getDocs, getDoc, addDoc, doc, serverTimestamp, query, where, limit, orderBy, updateDoc }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -717,7 +717,7 @@ document.getElementById('submitBtnTop').onclick = async () => {
             const targetDoc = qSnap.docs[0];
             const currentCount = parseInt(targetDoc.data().visitCount) || 0;
             // updateDocをインポートして使用
-            import { updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+           
             await updateDoc(targetDoc.ref, {
                 visitCount: currentCount + 1,
                 lastVisitDate: vDate.replace(/-/g, '/'),
