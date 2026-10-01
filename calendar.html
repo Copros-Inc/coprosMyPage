@@ -156,48 +156,30 @@ watchNotifications((allUnreadList) => {
                 const refR = collection(db, "activity_records");
                 const refA = collection(db, "appointments");
                 
-                // 🌟 爆速・省エネ：選択中の社員がいる場合、その人たちだけにクエリを絞る
-                let qR = query(refR, where("visitDate", ">=", `${y}/${mStr}/01`), where("visitDate", "<=", `${y}/${mStr}/31`));
-                let qA = query(refA, where("appointDate", ">=", `${y}-${mStr}-01`), where("appointDate", "<=", `${y}-${mStr}-31`));
+                // 🌟 修正：サーバーからは「日付の範囲」だけで取得（インデックスエラーを回避）
+                let qR = query(refR, where("visitDate", ">=", `${y}/${mStr}/01`), where("visitDate", "<=", `${y}/${mStr}/31`), limit(500));
+                let qA = query(refA, where("appointDate", ">=", `${y}-${mStr}-01`), where("appointDate", "<=", `${y}-${mStr}-31`), limit(300));
+                const qN = query(collection(db, "notifications"), where("recipient", "==", myName), where("isRead", "==", false), limit(50));
 
-                if (selectedStaffs.length > 0) {
-                    // Firestoreの 'in' 句を使用して、最大30人まで一括でサーバー側絞り込み
-                    const names = selectedStaffs.slice(0, 30);
-                    qR = query(qR, where("visitorName", "in", names));
-                    qA = query(qA, where("visitorName", "in", names));
-// --- fetchMonthData 関数内、165行目付近の else if (myName) ブロックを以下に差し替え ---
-                } else if (myName) {
-                    // スペースあり名とスペースなし名の両方を検索対象にする
-                    const nameVariants = [myName, myName.replace(/\s+/g, '')];
-                    // 重複を削除してユニークな配列にする
-                    const uniqueNames = [...new Set(nameVariants)];
-
-                    qR = query(refR, 
-                        where("visitDate", ">=", `${y}/${mStr}/01`), 
-                        where("visitDate", "<=", `${y}/${mStr}/31`),
-                        where("visitorName", "in", uniqueNames) // 🌟 両方の名前でヒットさせる
-                    );
-                    qA = query(refA, 
-                        where("appointDate", ">=", `${y}-${mStr}-01`), 
-                        where("appointDate", "<=", `${y}-${mStr}-31`),
-                        where("visitorName", "in", uniqueNames)
-                    );
-                }
-
-                const qN = query(collection(db, "notifications"), where("recipient", "==", myName), where("isRead", "==", false));
-                
                 const [snapR, snapA, snapN] = await Promise.all([ getDocs(qR), getDocs(qA), getDocs(qN) ]);
+
+                // 🌟 名前による絞り込みを JavaScript側で実行（スペースの有無を完全に吸収）
+                const nameVariants = [myName, myName.replace(/\s+/g, '')];
+                const selCleans = selectedStaffs.map(n => clean(n));
+                
+                const filterByName = (data) => {
+                    if (selectedStaffs.length > 0) return selCleans.includes(clean(data.visitorName));
+                    return nameVariants.includes(clean(data.visitorName)) || nameVariants.includes(data.visitorName);
+                };
+
                 loadedData = { 
-                    records: snapR.docs.map(d => ({id: d.id, ...d.data()})), 
-                    appoints: snapA.docs.map(d => ({id: d.id, ...d.data()})), 
+                    records: snapR.docs.map(d => ({id: d.id, ...d.data()})).filter(filterByName), 
+                    appoints: snapA.docs.map(d => ({id: d.id, ...d.data()})).filter(filterByName), 
                     notifications: snapN.docs.map(d => d.data()) 
                 };
                 
                 sessionStorage.setItem(cacheKey, JSON.stringify(loadedData));
                 if(loader) loader.style.display = 'none';
-                window.renderCalendar();
-            } catch (e) { console.error(e); if(loader) loader.style.display = 'none'; }
-        };
         
         window.renderCalendar = () => {
             const grid = document.getElementById('calendarGrid'); if(!grid) return;
