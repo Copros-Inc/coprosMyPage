@@ -149,18 +149,39 @@ watchNotifications((allUnreadList) => {
             const loader = document.getElementById('local-loader');
             if(loader) loader.style.display = 'flex';
             try {
-                const qR = query(collection(db, "activity_records"), where("visitDate", ">=", `${y}/${mStr}/01`), where("visitDate", "<=", `${y}/${mStr}/31`), limit(800));
-                const qA = query(collection(db, "appointments"), where("appointDate", ">=", `${y}-${mStr}-01`), where("appointDate", "<=", `${y}-${mStr}-31`), limit(500));
+                const refR = collection(db, "activity_records");
+                const refA = collection(db, "appointments");
+                
+                // 🌟 爆速・省エネ：選択中の社員がいる場合、その人たちだけにクエリを絞る
+                let qR = query(refR, where("visitDate", ">=", `${y}/${mStr}/01`), where("visitDate", "<=", `${y}/${mStr}/31`));
+                let qA = query(refA, where("appointDate", ">=", `${y}-${mStr}-01`), where("appointDate", "<=", `${y}-${mStr}-31`));
+
+                if (selectedStaffs.length > 0) {
+                    // Firestoreの 'in' 句を使用して、最大30人まで一括でサーバー側絞り込み
+                    const names = selectedStaffs.slice(0, 30);
+                    qR = query(qR, where("visitorName", "in", names));
+                    qA = query(qA, where("visitorName", "in", names));
+                } else if (myName) {
+                    // 社員未選択なら「自分だけ」を表示（最強の省エネ）
+                    qR = query(qR, where("visitorName", "==", myName));
+                    qA = query(qA, where("visitorName", "==", myName));
+                }
+
                 const qN = query(collection(db, "notifications"), where("recipient", "==", myName), where("isRead", "==", false));
                 
                 const [snapR, snapA, snapN] = await Promise.all([ getDocs(qR), getDocs(qA), getDocs(qN) ]);
-                loadedData = { records: snapR.docs.map(d => ({id: d.id, ...d.data()})), appoints: snapA.docs.map(d => ({id: d.id, ...d.data()})), notifications: snapN.docs.map(d => d.data()) };
+                loadedData = { 
+                    records: snapR.docs.map(d => ({id: d.id, ...d.data()})), 
+                    appoints: snapA.docs.map(d => ({id: d.id, ...d.data()})), 
+                    notifications: snapN.docs.map(d => d.data()) 
+                };
+                
                 sessionStorage.setItem(cacheKey, JSON.stringify(loadedData));
                 if(loader) loader.style.display = 'none';
                 window.renderCalendar();
             } catch (e) { console.error(e); if(loader) loader.style.display = 'none'; }
         };
-
+        
         window.renderCalendar = () => {
             const grid = document.getElementById('calendarGrid'); if(!grid) return;
             grid.innerHTML = "";
@@ -272,7 +293,20 @@ watchNotifications((allUnreadList) => {
                 </div>`).join('');
         };
         window.toggleModalStaff = (name) => { if (selectedStaffs.includes(name)) selectedStaffs = selectedStaffs.filter(n => n !== name); else selectedStaffs.push(name); window.renderModalList(); };
-        window.applyModal = () => { localStorage.setItem('cp_cal_selected_staffs', JSON.stringify(selectedStaffs)); window.updateSelectedDisplay(); window.renderCalendar(); window.closeModal(); };
+window.applyModal = () => { 
+    localStorage.setItem('cp_cal_selected_staffs', JSON.stringify(selectedStaffs)); 
+    window.updateSelectedDisplay(); 
+    window.fetchMonthData(true); // 🌟 true を渡して強制再取得
+    window.closeModal(); 
+};
+
+// 214行目付近：社員削除時
+window.removeStaff = (name) => { 
+    selectedStaffs = selectedStaffs.filter(n => n !== name); 
+    localStorage.setItem('cp_cal_selected_staffs', JSON.stringify(selectedStaffs)); 
+    window.updateSelectedDisplay(); 
+    window.fetchMonthData(true); // 🌟 強制再取得
+};
         window.updateSelectedDisplay = () => {
             const container = document.getElementById('selectedNamesDisplay');
             if (!selectedStaffs.length) { container.innerHTML = '<span class="text-slate-300 italic text-xs font-black uppercase">社員未選択</span>'; return; }
