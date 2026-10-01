@@ -83,6 +83,10 @@
                             <tr><td colspan="8" class="p-20 text-center text-slate-400 font-bold italic animate-pulse">同期中...</td></tr>
                         </tbody>
                     </table>
+  <div class="flex justify-center pb-10">
+    <button id="moreBtn" onclick="window.executeSearch(undefined, true)" class="hidden px-20 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-2xl font-black hover:bg-blue-50 transition-all active:scale-95">
+        もっと見る（次の20件）
+    </button>                 
                 </div>
             </div>
         </div>
@@ -91,13 +95,14 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db } from "./common.js";
-        import { collection, getDocs, orderBy, query, limit, where, doc, writeBatch }
+        import { collection, getDocs, orderBy, query, limit, where, doc, writeBatch, startAfter }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
         // 定数・状態管理
         // =========================================================
         let allCustomers = [];
+        let lastVisible = null; // 最後に読み込んだデータの位置を保持
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
 
         // =========================================================
@@ -148,79 +153,72 @@
             document.getElementById('totalDisplay').innerText = 0;
         }
 
-        window.executeSearch = async (kana = 'all') => {
-            // 🌟 修正：何も条件がない（全件表示）の状態なら処理を中断する（読み取りを1回も発生させない）
-            const name = document.getElementById('detailName').value.trim();
-            const addr = document.getElementById('detailAddress').value.trim();
-            const rank = document.getElementById('detailRank').value;
-            const type = document.getElementById('detailType').value;
+// 引数 append を追加
+window.executeSearch = async (kana = 'all', append = false) => {
+    const name = document.getElementById('detailName').value.trim();
+    const addr = document.getElementById('detailAddress').value.trim();
+    const rank = document.getElementById('detailRank').value;
+    const type = document.getElementById('detailType').value;
 
-            if (kana === 'all' && !name && !addr && !rank && !type) {
-                // 何もせずに終了
-                return;
-            }
+    if (!append) {
+        lastVisible = null; // 新規検索時はリセット
+        allCustomers = [];
+    }
 
-            const tbody = document.getElementById('customerTable');
-         
-            // =========================================================
-            // ▼▼▼ 追加：キャッシュチェック（Firebase通信ゼロ化）▼▼▼
-            // =========================================================
-            const cacheKey = getCacheKey(kana, name, addr, rank, type);
-            const cached = loadFromCache(cacheKey);
-            if (cached) {
-                allCustomers = cached;
-                renderTable(allCustomers);
-                return; // ✅ キャッシュHIT → Firebase通信なし
-            }
-            // =========================================================
-            // ▲▲▲ キャッシュチェックここまで ▲▲▲
-            // =========================================================
+    // 読み取り中表示
+    const tbody = document.getElementById('customerTable');
+    if (!append) tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-400 animate-pulse">検索中...</td></tr>`;
 
-            try {
-                const ref = collection(db, "customers");
-                let q;
+    try {
+        const ref = collection(db, "customers");
+        let constraints = [];
 
-                if (kana !== 'all') {
-                    // 🌟 カナ検索（これまで通り）
-                    const range = {
-                        'あ': ['ア', 'カ'], 'か': ['カ', 'サ'], 'さ': ['サ', 'タ'],
-                        'た': ['タ', 'ナ'], 'な': ['ナ', 'ハ'], 'は': ['ハ', 'マ'],
-                        'ま': ['マ', 'ヤ'], 'や': ['ヤ', 'ラ'], 'ら': ['ラ', 'ワ'],
-                        'わ': ['ワ', 'ン'], '他': ['!', 'ア']
-                    };
-                    const [start, end] = range[kana] || [kana, String.fromCharCode(kana.charCodeAt(0) + 1)];
-                    q = query(ref, where("kana", ">=", start), where("kana", "<", end), orderBy("kana"));
-                } else if (name) {
-                    // 🌟 名前検索：前方一致で全件から探す（爆速・省エネ）
-                    q = query(ref, where("name", ">=", name), where("name", "<=", name + '\uf8ff'), orderBy("name"));
-                } else if (addr) {
-                    // 🌟 住所検索：前方一致で全件から探す（爆速・省エネ）
-                    q = query(ref, where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'), orderBy("address"));
-                } else {
-                    // 🌟 初期表示・ランク・属性：最終訪問日が新しい順（近日が上）
-                    let constraints = [orderBy("lastVisitDate", "desc"), limit(200)];
-                    if (rank) constraints.unshift(where("rank", "==", rank));
-                    if (type) constraints.unshift(where("type", "==", type));
-                    q = query(ref, ...constraints);
-                }
+        // 検索条件をFirestoreのクエリ（サーバー側）に任せる
+        if (kana !== 'all') {
+            const range = {'あ':['ア','カ'],'か':['カ','サ'],'さ':['サ','タ'],'た':['タ','ナ'],'な':['ナ','ハ'],'は':['ハ','マ'],'ま':['マ','ヤ'],'や':['ヤ','ラ'],'ら':['ラ','ワ'],'わ':['ワ','ン'],'他':['!','ア']};
+            const [start, end] = range[kana];
+            constraints.push(where("kana", ">=", start), where("kana", "<", end));
+        } else if (name) {
+            constraints.push(where("name", ">=", name), where("name", "<=", name + '\uf8ff'));
+        } else if (addr) {
+            constraints.push(where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'));
+        }
 
-                const snap = await getDocs(q);
-                let results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (rank) constraints.push(where("rank", "==", rank));
+        if (type) constraints.push(where("type", "==", type));
 
-                // メモリ内補助フィルタ（クエリで絞りきれない属性用）
-                if (rank) results = results.filter(r => r.rank === rank);
-                if (type) results = results.filter(r => r.type === type);
-                
-                allCustomers = results;
-                // ▼ 取得データをキャッシュ保存 ▼
-                saveToCache(cacheKey, allCustomers);
+        // ★爆速・省エネの鍵：20件に絞り、続きから読み込む
+        constraints.push(orderBy(name ? "name" : (addr ? "address" : "kana"))); 
+        constraints.push(limit(20));
+        
+        if (append && lastVisible) {
 
-                renderTable(allCustomers);
-            } catch (e) {
-                console.error(e);
-                tbody.innerHTML = `<tr><td colspan="8" class="p-16 text-center text-rose-400 font-bold">読み込みに失敗しました</td></tr>`;
-            }
-        };
+            constraints.push(startAfter(lastVisible));
+        }
+
+        const q = query(ref, ...constraints);
+        const snap = await getDocs(q);
+        
+        lastVisible = snap.docs[snap.docs.length - 1]; // 最後の要素を保存
+
+        const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allCustomers = append ? [...allCustomers, ...newDocs] : newDocs;
+
+        renderTable(allCustomers);
+
+        // 「もっと見る」ボタンの制御（20件取れたら表示）
+        const moreBtn = document.getElementById('moreBtn');
+        if (snap.docs.length === 20) {
+            moreBtn.classList.remove('hidden');
+        } else {
+            moreBtn.classList.add('hidden');
+        }
+
+    } catch (e) {
+        console.error(e);
+        alert("検索条件を絞り込んでください（複合検索にはインデックスの設定が必要です）");
+    }
+};
 
         window.setKanaFilter = (btn, kana) => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'text-white'));
@@ -282,17 +280,12 @@
             location.href = 'add.html'; // 登録・編集ページへ
         };
 
-        window.clearSearch = () => {
-            document.querySelectorAll('#detailSearchSection input, #detailSearchSection select')
-                .forEach(e => e.value = "");
-            window.executeSearch();
-        };
-
-        // 🌟 追加：Enterキーで検索実行（利便性向上）
-        document.querySelectorAll('#detailSearchSection input').forEach(el => {
-            el.addEventListener('keypress', (e) => { if (e.key === 'Enter') window.executeSearch(); });
-        });
-        init();
+window.clearSearch = () => {
+    document.querySelectorAll('#detailSearchSection input, #detailSearchSection select')
+        .forEach(e => e.value = "");
+    // 全件表示ではなく、入力を促す初期表示に戻す
+    init(); 
+};
     </script>
 </body>
 </html>
