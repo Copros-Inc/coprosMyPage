@@ -120,6 +120,16 @@
         return `${parts[0]}/${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}`;
     };
 
+    // 🌟 追加：名寄せ用の「合言葉」を作る関数（スペース・法人格を無視）
+const createMatchKey = (s) => {
+    if (!s) return "";
+    return s.toString()
+        .replace(/[\s\u3000]+/g, '')        // 全角半角スペースを削除
+        .replace(/[（(].*?[)）]/g, '')      // (株) や (有) などのカッコ内を削除
+        .replace(/株式会社|有限会社|合同会社/g, '') // 法人格の文字を削除
+        .trim();
+};
+
     window.switchTab = (mode) => {
         currentMode = mode;
         const btn = document.getElementById('importBtn');
@@ -169,16 +179,20 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                 const ref = doc(collection(db, currentMode));
 
                 if (currentMode === 'customers') {
+                    const rawName = col[0]?.trim() || "";
                     batch.set(ref, {
-                        name: col[0]?.trim() || "", 
-                        kana: col[1]?.trim() || "",
-                        rank: col[2]?.trim() || "-", 
-                        type: col[3]?.trim() || "-",
-                        address: col[4]?.trim() || "", 
-                        tel: col[5]?.trim() || "",
-                        visitCount: parseInt(col[6]) || 0, 
-                        lastVisitDate: cleanDate(col[7]), // 🌟 lastVisitDate に修正
-                        updatedAt: serverTimestamp()
+                       name: rawName,
+                       matchKey: createMatchKey(rawName), // 🌟 追加
+                       kana: col[1]?.trim() || "",
+                       rank: col[2]?.trim() || "-",
+                       type: col[3]?.trim() || "-",
+                       address: col[4]?.trim() || "",
+                       tel: col[5]?.trim() || "",
+                       visitCount: parseInt(col[6]) || 0,
+                       lastVisitDate: cleanDate(col[7]),
+                       updatedAt: serverTimestamp()
+                    });
+                }
                     });
                 } 
                 else if (currentMode === 'activity_records') {
@@ -189,7 +203,8 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                     const dept = getDisplayDept(rawDept);
 
                     batch.set(ref, {
-                        customerName:      col[0]?.trim() || "",
+                        customerName:      rawCustName,
+                        matchKey:          createMatchKey(rawCustName), // 🌟 追加
                         customerRank:      col[1]?.trim() || "-",
                         customerAttr:      col[2]?.trim() || "-",
                         customerStaffName: col[3]?.trim() || "-",
