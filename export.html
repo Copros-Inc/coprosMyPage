@@ -245,48 +245,71 @@
             }
         };
 
-        window.executeExport = async () => {
-            const btn = document.getElementById('exportBtn');
-            const originalHTML = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>データ取得中...';
+window.executeExport = async () => {
+    const btn = document.getElementById('exportBtn');
+    const originalHTML = btn.innerHTML;
+    const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+    const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+    const visitor = document.getElementById('visitorFilter').value;
+    const rank = document.getElementById('rankFilter').value;
+    const dept = document.getElementById('deptFilter').value;
 
-            const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-            const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-            // ... (visitor, rank, deptの取得はそのまま)
+    const selectedCols = COLUMNS.filter(c => {
+        const input = document.querySelector(`input[value="${c.id}"]`);
+        return input && input.checked;
+    });
 
-            try {
-                // 🌟 省エネ：一度だけクエリを投げる
-                let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end), orderBy("visitDate", "desc"));
-                // ... (dept, visitor, rankのフィルタ追加はそのまま)
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
 
-                const snap = await getDocs(q);
-                const count = snap.size;
-                if (count === 0) return alert("対象データがありません。");
+    try {
+        let q = query(
+            collection(db, "activity_records"),
+            where("visitDate", ">=", start),
+            where("visitDate", "<=", end)
+        );
+        
+        // フィルタの追加
+        if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+        if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+        if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-                // 🌟 メモリ効率を考えた配列処理
-                const rows = [selectedCols.map(c => `"${c.label}"`).join(",")];
-                snap.forEach(doc => {
-                    const data = doc.data();
-                    const row = selectedCols.map(c => `"${(data[c.id] || "").toString().replace(/"/g, '""')}"`);
-                    rows.push(row.join(","));
-                });
+        // 🌟 修正：orderBy を外す（インデックスエラーを避けるため。ソートはJS側でやる方が安全）
+        const snap = await getDocs(q);
+        let docs = snap.docs.map(d => d.data());
 
-                const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = `実績バックアップ_${start.replace(/\//g,'')}.csv`;
-                link.click();
+        if (docs.length === 0) {
+            alert("対象データがありません。");
+            return;
+        }
 
-                log(`${count}件の出力を完了しました。`, "success");
-            } catch (e) {
-                alert("エラー: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalHTML;
-            }
-        };
+        // JS側で訪問日順に並び替え（サーバー負荷ゼロ）
+        docs.sort((a, b) => (b.visitDate || "").localeCompare(a.visitDate || ""));
+
+        // CSV生成
+        const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
+        docs.forEach(data => {
+            const row = selectedCols.map(c => {
+                const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
+                return `"${val}"`;
+            });
+            csvRows.push(row.join(","));
+        });
+
+        const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
+        link.click();
+
+    } catch (e) {
+        console.error(e);
+        alert("出力に失敗しました。条件を絞って再度お試しください。");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+};
 
         init();
     </script>
