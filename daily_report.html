@@ -87,12 +87,14 @@ async function init() {
                 } catch(e) { console.error("Cache Parse Error", e); }
             }
             
+            // 🌟 修正：キャッシュがない場合、その「日」のデータだけをピンポイントで取得（激的な省エネ）
             if (allRecords.length === 0) {
+                // targetDate は "2024-10-01" 形式なので Firestore の "2024/10/01" に変換
+                const dbSearchDate = targetDate.replace(/-/g, '/');
                 const q = query(
                     collection(db, "activity_records"), 
-                    where("visitDate", ">=", `${y}/${m.padStart(2, '0')}/01`), 
-                    where("visitDate", "<=", `${y}/${m.padStart(2, '0')}/31`),
-                    limit(500)
+                    where("visitDate", "==", dbSearchDate), // その日だけ！
+                    limit(200) // 1日の訪問が200件を超えることはまずないのでこれで十分
                 );
                 const snap = await getDocs(q);
                 allRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -295,6 +297,23 @@ window.toggleAcc = async (id, visitorName, customerName, date) => {
     const badge = item.querySelector('.bg-orange-500');
     if (!open && badge && badge.innerText.includes("未読")) {
         // 未読(false)を既読にするため auto=true で呼び出し
+        window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
+    }
+};
+        // 270行目付近の関数定義を以下に修正
+window.toggleAcc = async (id, visitorName, customerName, date) => {
+    const item = document.getElementById(id);
+    const content = item.querySelector('.accordion-content');
+    const open = (content.style.display === 'block');
+    
+    content.style.display = open ? 'none' : 'block';
+    const chevron = item.querySelector('.fa-chevron-down');
+    if(chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+
+    // 未読(false)を既読(true)にするための判定
+    const badge = item.querySelector('.bg-orange-500');
+    // アコーディオンを開いた(openがfalseからtrueになる)時に実行
+    if (!open && badge && badge.innerText.includes("未読")) {
         window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
     }
 };
