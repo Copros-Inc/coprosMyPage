@@ -120,7 +120,11 @@
                     const sSnap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
                     allStaffs = sSnap.docs.map(d => d.data());
                     sessionStorage.setItem('cp_cache_staffs', JSON.stringify(allStaffs));
+                    const myRealStaff = allStaffs.find(s => clean(s.name) === clean(myName));
+                if (myRealStaff) {
+                    myName = myRealStaff.name; // これで myName が「スペースあり」の状態に統一されます
                 }
+            }
                 window.updateSelectedDisplay();
                 
                // 🌟 修正：通知が届いた時に loadedData を確実に更新して再描画
@@ -161,10 +165,23 @@ watchNotifications((allUnreadList) => {
                     const names = selectedStaffs.slice(0, 30);
                     qR = query(qR, where("visitorName", "in", names));
                     qA = query(qA, where("visitorName", "in", names));
+// --- fetchMonthData 関数内、165行目付近の else if (myName) ブロックを以下に差し替え ---
                 } else if (myName) {
-                    // 社員未選択なら「自分だけ」を表示（最強の省エネ）
-                    qR = query(qR, where("visitorName", "==", myName));
-                    qA = query(qA, where("visitorName", "==", myName));
+                    // スペースあり名とスペースなし名の両方を検索対象にする
+                    const nameVariants = [myName, myName.replace(/\s+/g, '')];
+                    // 重複を削除してユニークな配列にする
+                    const uniqueNames = [...new Set(nameVariants)];
+
+                    qR = query(refR, 
+                        where("visitDate", ">=", `${y}/${mStr}/01`), 
+                        where("visitDate", "<=", `${y}/${mStr}/31`),
+                        where("visitorName", "in", uniqueNames) // 🌟 両方の名前でヒットさせる
+                    );
+                    qA = query(refA, 
+                        where("appointDate", ">=", `${y}-${mStr}-01`), 
+                        where("appointDate", "<=", `${y}-${mStr}-31`),
+                        where("visitorName", "in", uniqueNames)
+                    );
                 }
 
                 const qN = query(collection(db, "notifications"), where("recipient", "==", myName), where("isRead", "==", false));
