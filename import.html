@@ -71,7 +71,7 @@
     const mapping = {
         customers: "A:名 | B:カナ | C:ランク | D:属性 | E:住所 | F:電話 | G:回数 | H:最終訪問",
         staffs: "A:ID | B:氏名 | C:パス | D:メール | E:権限 | F:状態 | G:部署",
-        activity_records: "A:客名 | B:ランク | C:属性 | D:客先担当 | E:開始日時 | F:終了日時 | G:訪問者 | H:同行者 | I:定性1 | J:定性2 | K:定性3 | L:報告 | M:考え"
+        activity_records: "A:客名 | B:ランク | C:属性 | D:担当 | E:開始 | F:終了 | G:内容 | H:訪問者 | I:同行 | J:定性1 | K:定性2 | L:定性3 | M:自由 | N:報告 | O:考え"
     };
 
     // 🌟 高度な行分割（セル内の改行を保護する）
@@ -194,31 +194,40 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                     });
                 } 
                 else if (currentMode === 'activity_records') {
-                    const rawCustName = col[0]?.trim() || ""; // 🌟 これを追加
-                    const startFull = (col[4]||"").trim().split(' ');
-                    const endFull = (col[5]||"").trim().split(' ');
-                    const visitorNameClean = (col[6]||"").replace(/\s+/g, '');
+                    const rawCustName = col[0]?.trim() || "";
+                    const startFull   = (col[4]||"").trim().split(' '); // E列
+                    const endFull     = (col[5]||"").trim().split(' '); // F列
+                    
+                    const visitDate   = cleanDate(startFull[0]);
+                    const startTime   = startFull[1] || "00:00";
+                    const endTime     = endFull[1]   || "00:00";
+
+                    const visitorNameRaw = col[7]?.trim() || "不明"; // H列
+                    const visitorNameClean = visitorNameRaw.replace(/\s+/g, '');
                     const rawDept = staffMap.get(visitorNameClean) || "その他の部署";
                     const dept = getDisplayDept(rawDept);
 
                     batch.set(ref, {
                         customerName:      rawCustName,
                         matchKey:          createMatchKey(rawCustName),
-                        customerRank:      col[1]?.trim() || "-",
-                        customerAttr:      col[2]?.trim() || "-",
-                        customerStaffName: col[3]?.trim() || "-",
-                        visitDate:         cleanDate(startFull[0]),
-                        startTime:         startFull[1] || "00:00",
-                        endTime:           endFull[1] || "00:00",
-                        visitorName:       col[6]?.trim() || "不明",
-                        companion:         col[7]?.trim() || "-",
-                        qualData1:         col[8]?.trim() || "-",
-                        qualData2:         col[9]?.trim() || "-",
-                        qualData3:         col[10]?.trim() || "-",
-                        content:           col[11]?.trim() || "-",
-                        staffThoughts:     col[12]?.trim() || "-",
+                        customerRank:      col[1]?.trim() || "-", // B列
+                        customerAttr:      col[2]?.trim() || "-", // C列
+                        customerStaffName: col[3]?.trim() || "-", // D列
+                        visitDate:         visitDate,
+                        startTime:         startTime,
+                        endTime:           endTime,
+                        activityType:      col[6]?.trim() || "営業", // G列
+                        visitorName:       visitorNameRaw,
+                        companion:         col[8]?.trim() || "-",    // I列
+                        qualData1:         col[9]?.trim() || "-",    // J列
+                        qualData2:         col[10]?.trim() || "-",   // K列
+                        qualData3:         col[11]?.trim() || "-",   // L列
+                        qualFree:          col[12]?.trim() || "-",   // M列:自由項目
+                        content:           col[13]?.trim() || "-",   // N列:報告内容
+                        staffThoughts:     col[14]?.trim() || "-",   // O列:スタッフの考え
                         visitorDept:       dept,
-                        readBy:            [], createdAt: serverTimestamp()
+                        readBy:            [], 
+                        createdAt:         serverTimestamp()
                     });
                 }
                 
