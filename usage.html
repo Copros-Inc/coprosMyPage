@@ -150,23 +150,41 @@
             return snap.docs.map(d => d.data());
         }
 
-async function loadRecords(name) {
+// 144行目付近の loadRecords を書き換え
+async function loadRecords(name, month) {
+    const year = new Date().getFullYear(); // 現在の年（必要に応じて調整可）
+    const startStr = `${year}/${month.toString().padStart(2, '0')}/01`;
+    const endStr   = `${year}/${month.toString().padStart(2, '0')}/31`;
+
     const q = query(
         collection(db, "activity_records"), 
-        where("visitorName", "==", name), 
-        orderBy("visitDate", "desc"), // 🌟 日付順で取得
-        limit(500)
+        where("visitorName", "==", name),
+        where("visitDate", ">=", startStr), // 🌟 サーバー側で月を絞り込む
+        where("visitDate", "<=", endStr),
+        orderBy("visitDate", "desc"),
+        limit(200) // 1ヶ月で200件超えることはないのでこれで十分
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })); // 🌟 IDを保持
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-        async function fetchMyNotifications() {
-            const myName = sessionStorage.getItem('userName') || "";
-            const q = query(collection(db, "notifications"), where("recipient", "==", myName));
-            const snap = await getDocs(q);
-            myNotifications = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
 
+// 🌟 修正3：通知取得を最新50件に制限（省エネ仕様）
+async function fetchMyNotifications() {
+    const myName = sessionStorage.getItem('userName') || "";
+    try {
+        const q = query(
+            collection(db, "notifications"), 
+            where("recipient", "==", myName),
+            orderBy("createdAt", "desc"),
+            limit(50)
+        );
+        const snap = await getDocs(q);
+        myNotifications = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+        console.error("Fetch Notifications Error:", e);
+        myNotifications = [];
+    }
+}
         async function init() {
             try {
                 allStaffs = await loadStaffs();
@@ -201,21 +219,31 @@ window.renderStaffList = () => {
         </div>`).join('');
 };
 
-        // 🌟 復活：社員を選択した時の処理
-        window.selectStaff = async (name) => {
-            selectedName = name; 
-            window.renderStaffList(); // 選択状態（青色）を反映
-            document.getElementById('guideMsg').style.display = 'none';
-            document.getElementById('toolArea').style.display = 'block';
-            try {
-                currentStaffRecords = await loadRecords(name);
-                await fetchMyNotifications();
-                document.getElementById('selectedStaffLabel').innerText = `${name} さんの活動履歴`;
-                window.setMonth(currentM);
-            } catch (e) { console.error("Select Staff Error:", e); }
-        };
-        
-        window.setMonth = (m) => { currentM = m; document.querySelectorAll('.month-btn').forEach(btn => btn.classList.toggle('active', btn.id === `m-btn-${m}`)); window.renderAccordion(); };
+// 175行目付近：社員選択時に「現在の月」を指定して読み込む
+window.selectStaff = async (name) => {
+    selectedName = name; 
+    window.renderStaffList();
+    document.getElementById('guideMsg').style.display = 'none';
+    document.getElementById('toolArea').style.display = 'block';
+    try {
+        // 現在選択されている月(currentM)のデータだけを取る
+        currentStaffRecords = await loadRecords(name, currentM);
+        await fetchMyNotifications();
+        document.getElementById('selectedStaffLabel').innerText = `${name} さんの活動履歴`;
+        window.renderAccordion(); // 直接レンダリングへ
+    } catch (e) { console.error("Select Staff Error:", e); }
+};
+
+// 185行目付近：月切り替え時にも再読み込みを実行
+window.setMonth = async (m) => { 
+    currentM = m; 
+    document.querySelectorAll('.month-btn').forEach(btn => btn.classList.toggle('active', btn.id === `m-btn-${m}`));
+    if (selectedName) {
+        // 月を変えた瞬間にその月のデータを取得（爆速・省エネ）
+        currentStaffRecords = await loadRecords(selectedName, m);
+        window.renderAccordion();
+    }
+};
 
         window.renderAccordion = () => {
             recordImageMap = {};
