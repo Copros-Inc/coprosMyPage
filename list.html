@@ -186,7 +186,15 @@
                 if (rank) constraints.push(where("rank", "==", rank));
                 if (type) constraints.push(where("type", "==", type));
 
-                constraints.push(orderBy(name ? "name" : (addr ? "address" : "kana"))); 
+                if (name) {
+                    constraints.push(orderBy("name"));
+                } else if (addr) {
+                    constraints.push(orderBy("address"));
+                } else if (kana !== 'all') {
+                    constraints.push(orderBy("kana"));
+                } else {
+                    constraints.push(orderBy("lastVisitDate", "desc")); // 🌟 近日が上位
+                }
                 constraints.push(limit(20));
                 
                 if (append && lastVisible) {
