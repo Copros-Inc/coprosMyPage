@@ -90,7 +90,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db } from "./common.js";
-        import { collection, getDocs, query, where, limit, arrayUnion, arrayRemove, doc, updateDoc } 
+        import { collection, getDocs, query, where, limit, arrayUnion, arrayRemove, doc, updateDoc, orderBy } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -253,7 +253,7 @@
                         <p class="text-rose-500 font-black text-sm mb-2">データの読み込みに失敗しました</p>
                         <p class="text-rose-300 font-bold text-xs mb-1">${e.message}</p>
                         <p class="text-rose-300 font-bold text-[10px]">コード: ${e.code || '不明'}</p>
-                        <button onclick="init()" class="mt-6 px-8 py-2 bg-[#004098] text-white rounded-xl font-black text-xs hover:opacity-90">
+                        <button onclick="location.reload()" class="mt-6 px-8 py-2 bg-[#004098] text-white rounded-xl font-black text-xs hover:opacity-90">
                             再読み込み
                         </button>
                     </div>`;
