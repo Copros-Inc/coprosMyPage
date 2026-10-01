@@ -133,9 +133,10 @@
         // ▲▲▲ キャッシュ管理ここまで ▲▲▲
         // =========================================================
 
+// --- 124行目付近からの差し替え用コード ---
         async function init() {
-            // 🌟 マスタ反映（属性・区分）のみ実行。データ読み込みは一切行わない。
             try {
+                // マスタ反映
                 const masterJSON = localStorage.getItem('cp_master_qual_options');
                 if (masterJSON) {
                     const master = JSON.parse(masterJSON);
@@ -145,24 +146,24 @@
                             master.custSegments.map(s => `<option value="${s}">${s}</option>`).join('');
                     }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Master Load Error:", e); }
 
-            // 🌟 修正：初期表示の executeSearch() を削除。画面は空の状態で待機。
-            const tbody = document.getElementById('customerTable');
-            tbody.innerHTML = `<tr><td colspan="8" class="p-16 text-center text-slate-400 font-bold italic">検索条件を入力して「検索を実行」または「カナ行」を押してください</td></tr>`;
-            document.getElementById('totalDisplay').innerText = 0;
-        }
+            // 🌟 修正：起動時に最新の20件を自動表示する
+            window.executeSearch('all');
+        } 
 
 // 引数 append を追加
 window.executeSearch = async (kana = 'all', append = false) => {
+    // 🌟 ここから追加（キャッシュがあれば通信しない）
     const name = document.getElementById('detailName').value.trim();
     const addr = document.getElementById('detailAddress').value.trim();
     const rank = document.getElementById('detailRank').value;
     const type = document.getElementById('detailType').value;
-
+    
     if (!append) {
-        lastVisible = null; // 新規検索時はリセット
-        allCustomers = [];
+        const cacheKey = getCacheKey(kana, name, addr, rank, type);
+        const cached = loadFromCache(cacheKey);
+        if (cached) { allCustomers = cached; renderTable(allCustomers); return; }
     }
 
     // 読み取り中表示
