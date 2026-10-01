@@ -250,6 +250,16 @@
 
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
 
+        // 🌟 追加：名寄せ用の「合言葉」を作る関数（import.htmlと共通）
+const createMatchKey = (s) => {
+    if (!s) return "";
+    return s.toString()
+        .replace(/[\s\u3000]+/g, '')
+        .replace(/[（(].*?[)）]/g, '')
+        .replace(/株式会社|有限会社|合同会社/g, '')
+        .trim();
+};
+
         // ▼ 圧縮設定（スマホ写真をそのまま添付できるよう強めに圧縮）
         const COMPRESS_CONFIG = {
             maxPx:    800,   // 最大辺800px
@@ -680,35 +690,48 @@ document.getElementById('submitBtnTop').onclick = async () => {
         const visitor      = document.getElementById('visitorName').value;
         const vDate        = document.getElementById('visitDate').value;
         const customerRank = document.getElementById('autoRank').value || '';
-        const customerAttr = document.getElementById('autoType').value  || '';
+        const customerAttr = document.getElementById('autoType').value || '';
         const staffEntry   = allStaffs.find(s => clean(s.name) === clean(visitor));
-        const vDept        = staffEntry ? staffEntry.dept : (sessionStorage.getItem('userDept') || "ケコム部");
+        const vDept        = staffEntry ? staffEntry.dept : (sessionStorage.getItem('userDept') || "営業部");
 
-        // 🌟 ここで cNames を定義（順序エラーを根絶）
+        // 🌟 追加：名寄せ用の合言葉を作成
+        const matchKey = createMatchKey(customer); 
+
         const cDisp  = document.getElementById('circularDisplay').innerText;
         let cNames = (cDisp !== '未選択' && cDisp !== '') 
             ? cDisp.split(/[,、\s]+/).filter(n => n.trim() !== '') 
             : [];
 
-        const attachments = selectedFiles.map(f => ({
-            name:   f.name,
-            base64: f.base64,
-            type:   'image/jpeg'
-        }));
+        const attachments = selectedFiles.map(f => ({ name: f.name, base64: f.base64, type: 'image/jpeg' }));
+
+        // 🌟 1. お客様マスターの訪問回数を +1 し、最終訪問日を更新する
+        const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
+        const qSnap = await getDocs(qCust);
+        if (!qSnap.empty) {
+            const targetDoc = qSnap.docs[0];
+            const currentCount = parseInt(targetDoc.data().visitCount) || 0;
+            // updateDocをインポートして使用
+            import { updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+            await updateDoc(targetDoc.ref, {
+                visitCount: currentCount + 1,
+                lastVisitDate: vDate.replace(/-/g, '/'),
+                updatedAt: serverTimestamp()
+            });
+        }
 
         const blocks = document.querySelectorAll('.report-block');
         
-          // 1. 各報告ブロックを保存
+        // 🌟 2. 各報告ブロックを保存（matchKeyを追加）
         await Promise.all([...blocks].map(b => {
             const staffName = b.querySelector('.customer-staff-dropdown').value;
-            // 🌟 追加：画面から同行者の値を取得
             const companion = document.getElementById('companionDisplay').value;
 
             return addDoc(collection(db, "activity_records"), {
                 customerName:      customer,
+                matchKey:          matchKey, // 🌟 これを追加
                 customerRank:      customerRank,
                 customerAttr:      customerAttr,
-                activityType:      document.getElementById('activityType').value, // 🌟 これを追加！
+                activityType:      document.getElementById('activityType').value,
                 customerStaffName: staffName,
                 companion:         companion, 
                 qualData1:         b.querySelector('.qual-data-1').value,
@@ -719,8 +742,8 @@ document.getElementById('submitBtnTop').onclick = async () => {
                 visitDate:         vDate.replace(/-/g, '/'),
                 visitorName:       visitor,
                 visitorDept:       vDept,
-                startTime:         document.getElementById('startTime').value  || "00:00",
-                endTime:           document.getElementById('endTime').value    || "00:00",
+                startTime:         document.getElementById('startTime').value || "00:00",
+                endTime:           document.getElementById('endTime').value   || "00:00",
                 content:           b.querySelector('.customer-report').value,
                 nextVisitDate:     (document.getElementById('nextVisitDate').value || "").replace(/-/g, '/'),
                 staffThoughts:     b.querySelector('.staff-thoughts').value,
