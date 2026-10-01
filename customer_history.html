@@ -263,29 +263,29 @@
         // --- 修正箇所：特定の日付の実績を自動で「全開」にする ---
 function autoOpenFirst() {
     const params = new URLSearchParams(window.location.search);
-    const targetDate = params.get('targetDate'); // カレンダー/一覧から渡される日付
-    const focusDate = params.get('focusDate');   // カレンダーの数字クリック用
-    const dateToFind = targetDate || (focusDate ? focusDate.replace(/-/g, '/') : null);
+    const targetDate = params.get('targetDate'); // 2026/09/30 形式
     
     const cards = document.querySelectorAll('.history-card');
     let found = false;
 
     cards.forEach(card => {
-        const dateText = card.querySelector('.history-header span').innerText.trim();
+        // 🌟 修正：visit-date-text クラスから日付を取得する
+        const dateEl = card.querySelector('.visit-date-text');
+        const dateText = dateEl ? dateEl.innerText.trim() : "";
         const body = card.querySelector('.history-body');
         const arrow = card.querySelector('.arrow-icon');
 
         // 指定の日付と一致する場合、または指定がなく1件目の場合、アコーディオンを開く
-        if ((dateToFind && dateText.includes(dateToFind)) || (!dateToFind && !found)) {
+        if ((targetDate && dateText === targetDate) || (!targetDate && !found)) {
             body.style.display = 'block';
-            arrow.style.transform = 'rotate(180deg)';
-            if (dateToFind && !found) {
-                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+            if (targetDate && !found) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
             found = true;
         } else {
             body.style.display = 'none';
-            arrow.style.transform = 'rotate(0deg)';
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
         }
     });
 }
@@ -369,7 +369,7 @@ function autoOpenFirst() {
                             <span class="status-badge text-[9px] font-black px-2 py-0.5 rounded-md ${isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">
                                 ${isRead ? '既読' : '未読'}
                             </span>
-                            <span class="text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">${fmtDate(data.visitDate)}</span>
+                            <span class="visit-date-text text-sm font-black tracking-widest bg-white/10 px-4 py-1 rounded-full">${fmtDate(data.visitDate)}</span>
                           <span class="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md opacity-70">[${shortType}]</span>
                           <span class="text-sm font-black opacity-90">${data.visitorName || '担当者不明'}</span>
                             ${images.length > 0
