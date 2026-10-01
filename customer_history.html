@@ -105,6 +105,14 @@
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
         const cleanName = clean(rawName);
         const fmtDate = (s) => s ? String(s).replace(/-/g, '/') : '--/--/--';
+        const createMatchKey = (s) => {
+    if (!s) return "";
+    return s.toString()
+        .replace(/[\s\u3000]+/g, '')
+        .replace(/[（(].*?[)）]/g, '')
+        .replace(/株式会社|有限会社|合同会社/g, '')
+        .trim();
+};
 
         // =========================================================
         // ライトボックス
@@ -198,58 +206,44 @@
                 location.href = `history.html?${p.toString()}`;
             };
 
-            try {
-                let records = [];
+        try {
+            // 🌟 修正：インポート時に作成した「合言葉」でピンポイント検索（爆速・省エネ）
+            const matchKey = createMatchKey(rawName);
+            const ref = collection(db, "activity_records");
+            
+            // サーバー側で matchKey が一致するものだけを最新50件取得
+            const q = query(
+                ref, 
+                where("matchKey", "==", matchKey),
+                orderBy("visitDate", "desc"),
+                limit(50)
+            );
 
-                // ① 完全一致検索
-                const snap1 = await getDocs(query(
-                    collection(db, "activity_records"),
-                    where("customerName", "==", rawName),
-                    limit(50)
-                ));
-                records = snap1.docs.map(d => ({ id: d.id, ...d.data() }));
+            const snap = await getDocs(q);
+            let records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // ② cleanした名前で再検索
-                if (records.length === 0 && cleanName !== rawName) {
-                    const snap2 = await getDocs(query(
-                        collection(db, "activity_records"),
-                        where("customerName", "==", cleanName),
-                        limit(50)
-                    ));
-                    records = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-                }
+            // 🌟 補助：もし matchKey で見つからない場合のみ、古い形式の名前で1回だけ検索
+            if (records.length === 0) {
+                const qBackup = query(ref, where("customerName", "==", rawName), limit(20));
+                const snapBackup = await getDocs(qBackup);
+                records = snapBackup.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
 
-                // ③ 全件取得してJS側でclean比較
-                if (records.length === 0) {
-                    const snap3 = await getDocs(query(
-                        collection(db, "activity_records"),
-                        limit(500)
-                    ));
-                    records = snap3.docs
-                        .map(d => ({ id: d.id, ...d.data() }))
-                        .filter(r => clean(r.customerName) === cleanName);
-                }
+            if (!records.length) {
+                document.getElementById('historyListContainer').innerHTML =
+                    `<div class="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+                        <p class="text-slate-300 font-black italic tracking-widest uppercase">No Activity Found</p>
+                        <p class="text-slate-300 text-xs mt-2">${customerName}</p>
+                    </div>`;
+                return;
+            }
 
-                // 日付降順ソート
-                records.sort((a, b) => {
-                    const da  = (a.visitDate || '').replace(/\//g, '-');
-                    const db_ = (b.visitDate || '').replace(/\//g, '-');
-                    return da > db_ ? -1 : da < db_ ? 1 : 0;
-                });
+            // 日付順に最終確認（サーバーでソート済みですが念のため）
+            records.sort((a, b) => (b.visitDate || "").localeCompare(a.visitDate || ""));
 
-                if (!records.length) {
-                    document.getElementById('historyListContainer').innerHTML =
-                        `<div class="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
-                            <p class="text-slate-300 font-black italic tracking-widest uppercase">No Activity Found for this Customer</p>
-                            <p class="text-slate-300 text-xs mt-2">${customerName}</p>
-                        </div>`;
-                    return;
-                }
-
-                renderHistory(records);
-                // --- 修正箇所：取得したデータを保存 ---
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify(records));
-                autoOpenFirst();
+            renderHistory(records);
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(records));
+            autoOpenFirst();
 
             } catch (e) {
                 console.error("履歴取得エラー:", e);
