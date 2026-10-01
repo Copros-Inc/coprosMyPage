@@ -119,7 +119,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, TARGET_DEPTS, getDisplayDept } from "./common.js";
-        import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy }
+        import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy, startAfter }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -198,7 +198,7 @@
                 if (custK) constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + '\uf8ff'));
 
                 if (append && lastVisible) {
-                    import { startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+                   
                     constraints.push(startAfter(lastVisible));
                 }
 
