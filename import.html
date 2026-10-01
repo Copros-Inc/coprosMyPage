@@ -182,7 +182,7 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                     const rawName = col[0]?.trim() || "";
                     batch.set(ref, {
                        name: rawName,
-                       matchKey: createMatchKey(rawName), // 🌟 追加
+                       matchKey: createMatchKey(rawName),
                        kana: col[1]?.trim() || "",
                        rank: col[2]?.trim() || "-",
                        type: col[3]?.trim() || "-",
@@ -192,10 +192,9 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                        lastVisitDate: cleanDate(col[7]),
                        updatedAt: serverTimestamp()
                     });
-                }
-                    });
                 } 
                 else if (currentMode === 'activity_records') {
+                    const rawCustName = col[0]?.trim() || ""; // 🌟 これを追加
                     const startFull = (col[4]||"").trim().split(' ');
                     const endFull = (col[5]||"").trim().split(' ');
                     const visitorNameClean = (col[6]||"").replace(/\s+/g, '');
@@ -204,7 +203,7 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
 
                     batch.set(ref, {
                         customerName:      rawCustName,
-                        matchKey:          createMatchKey(rawCustName), // 🌟 追加
+                        matchKey:          createMatchKey(rawCustName),
                         customerRank:      col[1]?.trim() || "-",
                         customerAttr:      col[2]?.trim() || "-",
                         customerStaffName: col[3]?.trim() || "-",
