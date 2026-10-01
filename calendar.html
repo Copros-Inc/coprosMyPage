@@ -156,14 +156,14 @@ watchNotifications((allUnreadList) => {
                 const refR = collection(db, "activity_records");
                 const refA = collection(db, "appointments");
                 
-                // 🌟 修正：サーバーからは「日付の範囲」だけで取得（インデックスエラーを回避）
+                // サーバーからは「日付の範囲」だけで取得（インデックスエラーを回避）
                 let qR = query(refR, where("visitDate", ">=", `${y}/${mStr}/01`), where("visitDate", "<=", `${y}/${mStr}/31`), limit(500));
                 let qA = query(refA, where("appointDate", ">=", `${y}-${mStr}-01`), where("appointDate", "<=", `${y}-${mStr}-31`), limit(300));
                 const qN = query(collection(db, "notifications"), where("recipient", "==", myName), where("isRead", "==", false), limit(50));
 
                 const [snapR, snapA, snapN] = await Promise.all([ getDocs(qR), getDocs(qA), getDocs(qN) ]);
 
-                // 🌟 名前による絞り込みを JavaScript側で実行（スペースの有無を完全に吸収）
+                // 名前による絞り込みを JavaScript側で実行（スペースの有無を完全に吸収）
                 const nameVariants = [myName, myName.replace(/\s+/g, '')];
                 const selCleans = selectedStaffs.map(n => clean(n));
                 
@@ -180,6 +180,12 @@ watchNotifications((allUnreadList) => {
                 
                 sessionStorage.setItem(cacheKey, JSON.stringify(loadedData));
                 if(loader) loader.style.display = 'none';
+                window.renderCalendar();
+            } catch (e) { 
+                console.error("Fetch Month Data Error:", e); 
+                if(loader) loader.style.display = 'none'; 
+            }
+        };
         
         window.renderCalendar = () => {
             const grid = document.getElementById('calendarGrid'); if(!grid) return;
