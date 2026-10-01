@@ -107,6 +107,10 @@
                             <tr><td colspan="6" class="p-20 text-center text-slate-400 font-bold italic animate-pulse">実績データを同期中...</td></tr>
                         </tbody>
                     </table>
+                    <div class="flex justify-center pb-10">
+    <button id="moreBtn" onclick="window.executeSearch(true)" class="hidden px-20 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-2xl font-black hover:bg-blue-50 transition-all active:scale-95 shadow-md">
+        もっと見る（次の20件）
+    </button>
                 </div>
             </div>
         </div>
@@ -167,9 +171,17 @@
         // ▲▲▲ キャッシュ管理ここまで ▲▲▲
         // =========================================================
 
-        window.executeSearch = async () => {
-            const tbody  = document.getElementById('recordTable');
-            tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 font-bold italic animate-pulse">データを取得中...</td></tr>`;
+        let lastVisible = null; // 🌟 続きから読み込むための位置保持
+
+        window.executeSearch = async (append = false) => {
+            const tbody = document.getElementById('recordTable');
+            const moreBtn = document.getElementById('moreBtn');
+
+            if (!append) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">同期中...</td></tr>`;
+                lastVisible = null;
+                allRecords = [];
+            }
 
             const custK  = document.getElementById('filterCustomer').value.trim();
             const visiK  = document.getElementById('filterVisitor').value.trim();
@@ -177,56 +189,49 @@
             const endD   = document.getElementById('endDate').value;
             const dept   = document.getElementById('deptFilter').value;
 
-            // =========================================================
-            // ▼▼▼ 追加②：キャッシュチェック ▼▼▼
-            // =========================================================
-            const cacheKey = getCacheKey(dept, custK, visiK, startD, endD);
-            const cached   = loadFromCache(cacheKey);
-            if (cached) {
-                allRecords = cached;
-                window.updateView();
-                return; // ✅ キャッシュHIT → Firebase通信なし
-            }
-            // =========================================================
-            // ▲▲▲ キャッシュチェックここまで ▲▲▲
-            // =========================================================
-
             try {
-               
-                let q;
                 const ref = collection(db, "activity_records");
-                
-                // 🌟 修正：メイン部署以外（OTHER）の判定を含むクエリ
-                if (dept !== 'ALL' && dept !== 'OTHER') {
-                    q = query(ref, where("visitorDept", "==", dept), orderBy("visitDate", "desc"), limit(500));
-                } else {
-                    q = query(ref, orderBy("visitDate", "desc"), limit(500));
+                let constraints = [orderBy("visitDate", "desc"), limit(20)];
+
+                // 🌟 省エネ：サーバー側で絞り込み（インデックスエラー回避のため、重要なものに絞る）
+                if (dept !== 'ALL' && dept !== 'OTHER') constraints.push(where("visitorDept", "==", dept));
+                if (custK) constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + '\uf8ff'));
+
+                if (append && lastVisible) {
+                    import { startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+                    constraints.push(startAfter(lastVisible));
                 }
 
+                const q = query(ref, ...constraints);
                 const snap = await getDocs(q);
-                let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 🌟 JS側フィルタ：OTHER選択時はメイン部署以外を抽出
-                if (dept === 'OTHER') {
-                    data = data.filter(r => getDisplayDept(r.visitorDept) === "その他の部署");
-                } else if (dept !== 'ALL') {
-                    data = data.filter(r => clean(r.visitorDept) === clean(dept));
+                if (snap.empty && !append) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-black uppercase tracking-widest">該当する実績はありません</td></tr>`;
+                    if (moreBtn) moreBtn.classList.add('hidden');
+                    return;
                 }
-                
-                if (custK)  data = data.filter(r => (r.customerName || "").includes(custK));
-                if (visiK)  data = data.filter(r => (r.visitorName  || "").includes(visiK));
-                if (startD) data = data.filter(r => normalizeDate(r.visitDate) >= startD);
-                if (endD)   data = data.filter(r => normalizeDate(r.visitDate) <= endD);
 
-                allRecords = data;
+                lastVisible = snap.docs[snap.docs.length - 1];
+                let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // ▼ 取得データをキャッシュ保存 ▼
-                saveToCache(cacheKey, allRecords);
+                // 🌟 メモリ内補助フィルタ（複雑な条件用）
+                if (visiK) newDocs = newDocs.filter(r => (r.visitorName || "").includes(visiK));
+                if (startD) newDocs = newDocs.filter(r => normalizeDate(r.visitDate) >= startD);
+                if (endD)   newDocs = newDocs.filter(r => normalizeDate(r.visitDate) <= endD);
+
+                allRecords = append ? [...allRecords, ...newDocs] : newDocs;
 
                 window.updateView();
+
+                // 「もっと見る」ボタンの表示制御
+                if (moreBtn) {
+                    if (snap.docs.length === 20) moreBtn.classList.remove('hidden');
+                    else moreBtn.classList.add('hidden');
+                }
+
             } catch (e) {
                 console.error(e);
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">通信エラー: 権限または接続を確認してください</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー: 条件を絞り込んでください</td></tr>`;
             }
         };
 
