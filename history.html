@@ -349,6 +349,7 @@ const createMatchKey = (s) => {
                 window.addReportBlock();
 
                 const saved = localStorage.getItem('cp_history_draft');
+                // 下書きがある場合、かつ、URLパラメータがない場合のみ復元
                 if (saved && !new URLSearchParams(window.location.search).get('name')) {
                     if (confirm("下書きを復元しますか？")) {
                         const d = JSON.parse(saved);
@@ -388,6 +389,11 @@ const createMatchKey = (s) => {
                     endTimeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 }
             } catch (e) { console.error("init error:", e); }
+            
+             // 🌟 ここに挿入！「もし報告欄が1つもなければ、1つ目を作る」という命令です
+            if (document.getElementById('reportContainer').children.length === 0) {
+                window.addReportBlock();
+            }
         }
 
         window.syncAllStaffSelects = (val) => {
