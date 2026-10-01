@@ -150,8 +150,14 @@
         log(`${total}件のデータを解析しました。照合を開始します...`, "info");
 
         // 社員部署マップ作成
-        const sSnap = await getDocs(collection(db, "staffs"));
-        sSnap.forEach(d => staffMap.set(d.data().name.replace(/\s+/g, ''), d.data().dept || "不明"));
+// 141行目付近の sSnap 取得部分を修正
+log(`データの解析を開始します...`, "info");
+
+// 社員名簿が必要なのは実績データ（activity_records）の時だけ
+if (currentMode === 'activity_records' && staffMap.size === 0) {
+    const sSnap = await getDocs(collection(db, "staffs"));
+    sSnap.forEach(d => staffMap.set(d.data().name.replace(/\s+/g, ''), d.data().dept || "不明"));
+}
 
         let batch = writeBatch(db);
         let count = 0;
@@ -217,35 +223,54 @@
         alert("インポートが完了しました。");
     };
 
-    document.getElementById('deleteBtn').onclick = async () => {
-        const mode = currentMode;
-        if (!confirm(`【警告】${mode} の全データを安全に削除しますか？`)) return;
+document.getElementById('deleteBtn').onclick = async () => {
+    const mode = currentMode;
+    const modeName = mode === 'customers' ? 'お客様名簿' : mode === 'staffs' ? '社員名簿' : '実績データ';
+    
+    // 二重の警告で誤操作防止
+    if (!confirm(`【最終確認】${modeName} の全データを削除します。\nこの操作は取り消せません。よろしいですか？`)) return;
+    const safetyCode = prompt("安全のため、半角で「DELETE」と入力してください");
+    if (safetyCode !== "DELETE") return alert("処理を中止しました");
 
-        const btn = document.getElementById('deleteBtn');
-        btn.disabled = true;
-        btn.innerText = "削除中...";
+    const btn = document.getElementById('deleteBtn');
+    btn.disabled = true;
+    btn.innerText = "削除中...";
 
-        try {
-            let totalDeleted = 0;
-            while (true) {
-                // 🌟 500件ずつ取得（ブラウザを固めないコツ）
-                const q = query(collection(db, mode), limit(500));
-                const snap = await getDocs(q);
-                if (snap.empty) break;
+    try {
+        let totalDeleted = 0;
+        let hasData = true;
 
-                const batch = writeBatch(db);
-                snap.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-
-                totalDeleted += snap.size;
-                log(`${totalDeleted} 件まで削除完了...`);
-                await new Promise(r => setTimeout(r, 200)); // 負荷分散
+        while (hasData) {
+            // 省エネのコツ：ドキュメントIDだけを取得するように制限（フィールド読み取りを最小化）
+            // Firestoreには「IDのみ取得」がないため、最小限のデータで取得
+            const q = query(collection(db, mode), limit(500)); 
+            const snap = await getDocs(q);
+            
+            if (snap.empty) {
+                hasData = false;
+                break;
             }
-            log(`全 ${totalDeleted} 件の削除が完了しました。`, "info");
-            alert("削除が完了しました。");
-        } catch (e) { alert("削除エラー: " + e.message); }
-        finally { btn.disabled = false; btn.innerText = "選択中のカテゴリを全削除する"; }
-    };
+
+            const batch = writeBatch(db);
+            snap.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+
+            totalDeleted += snap.size;
+            log(`${totalDeleted} 件の削除を完了...`, "info");
+            
+            // 連続実行による負荷とクォータ消費を抑えるための待機
+            await new Promise(r => setTimeout(r, 500));
+        }
+        log(`削除完了: 合計 ${totalDeleted} 件`, "success");
+        alert("削除が完了しました。");
+    } catch (e) { 
+        log("削除エラー: " + e.message, "error");
+        alert("エラーが発生しました: " + e.message);
+    } finally { 
+        btn.disabled = false; 
+        btn.innerText = "選択中のカテゴリを全削除する"; 
+    }
+};
     
     window.switchTab('activity_records');
 </script>
