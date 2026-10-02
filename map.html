@@ -162,56 +162,41 @@
             const keyword = document.getElementById('mapSearchInput').value.trim();
             const type = document.getElementById('typeFilter').value;
 
-            // 🌟 追加：住所検索による地図ジャンプ
-            if (mode === 'search' && keyword) {
-                const searchCoords = await getCoords(keyword);
-                if (searchCoords) {
-                    map.setView([searchCoords.lat, searchCoords.lng], 12);
-                    log(`${keyword}周辺を表示します`);
-                }
-            }
-
-            if (mode === 'search' && allFetchedCustomers.length > 0 && !keyword.includes(' ')) {
-                const filtered = allFetchedCustomers.filter(c => (c.name.includes(keyword) || (c.address || "").includes(keyword)) && (type === 'ALL' || c.type === type));
-                if (filtered.length > 0) { renderMarkers(filtered, true); return; }
+            // 🌟 修正：検索キーワードも属性選択もない場合は何もしない（暴走防止）
+            if (mode === 'recent' && !keyword && type === 'ALL') {
+                log("検索条件を入力してください");
+                return;
             }
             
-            log(mode === 'more' ? "さらに読み込み中..." : "データを照合中...");
+            log("データを照合中...");
             const ref = collection(db, "customers");
-            let constraints = [orderBy("updatedAt", "desc"), limit(100)];
-            if (mode === 'more' && lastVisibleDoc) {
-                const { startAfter } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-                constraints.push(startAfter(lastVisibleDoc));
-            } else {
-                markersLayer.clearLayers(); allFetchedCustomers = [];
+            
+            // シンプルなクエリ（インデックスエラーを避ける）
+            let q = query(ref, limit(200)); 
+            if (keyword) {
+                q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
             }
 
-            let q = query(ref, ...constraints);
-            if (keyword && mode === 'search') q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
-            else if (type !== 'ALL') q = query(ref, where("type", "==", type), ...constraints);
-            
             try {
-                let snap = await getDocs(q);
-                // 🌟 追加：名前で0件なら住所で再検索（省エネフォールバック）
-                if (snap.empty && keyword && mode === 'search') {
-                    q = query(ref, where("address", ">=", keyword), where("address", "<=", keyword + '\uf8ff'), limit(100));
-                    snap = await getDocs(q);
-                }
+                const snap = await getDocs(q);
                 if (snap.empty) { log("該当なし"); return; }
-                lastVisibleDoc = snap.docs[snap.docs.length - 1];
-                const newCustomers = await Promise.all(snap.docs.map(async (d) => {
-                    const c = { id: d.id, ...d.data() };
-                    if (!c.lat || !c.lng) {
-                        const coords = await getCoords(c.address);
-                        if (coords) { updateDoc(doc(db, "customers", c.id), coords); c.lat = coords.lat; c.lng = coords.lng; }
-                    }
-                    return c;
-                }));
-                const valid = newCustomers.filter(c => c.lat && c.lng);
-                allFetchedCustomers = [...allFetchedCustomers, ...valid];
-                renderMarkers(valid, mode !== 'more');
+
+                const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                // 🌟 最重要：自動変換(getCoords)を完全に廃止し、座標がある人だけを表示
+                const valid = docs.filter(c => c.lat && c.lng);
+
+                if (valid.length === 0) {
+                    log("表示できる座標データがありません。Excelで座標を登録してください。");
+                } else {
+                    renderMarkers(valid, true);
+                    log(`${valid.length}件表示しました`);
+                }
             } catch (e) { console.error(e); }
         };
+
+        // 🌟 起動時の自動実行を停止
+        // window.initMap(); 
 
         function renderMarkers(customers, clear) {
             if (clear) markersLayer.clearLayers();
