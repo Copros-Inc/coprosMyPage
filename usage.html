@@ -150,36 +150,42 @@
             return snap.docs.map(d => d.data());
         }
 
-// 144行目付近の loadRecords を書き換え
+// --- 144行目付近の loadRecords を以下に差し替え ---
 async function loadRecords(name, month) {
-    const year = new Date().getFullYear(); // 現在の年（必要に応じて調整可）
+    // 🌟 修正：セッションにある日付、または 2026年 をデフォルトにする
+    const rawDate = sessionStorage.getItem('cp_daily_date') || "";
+    let year = 2026; 
+    if (rawDate.includes('-')) year = parseInt(rawDate.split('-')[0]);
+
     const startStr = `${year}/${month.toString().padStart(2, '0')}/01`;
     const endStr   = `${year}/${month.toString().padStart(2, '0')}/31`;
 
     const q = query(
         collection(db, "activity_records"), 
         where("visitorName", "==", name),
-        where("visitDate", ">=", startStr), // 🌟 サーバー側で月を絞り込む
+        where("visitDate", ">=", startStr),
         where("visitDate", "<=", endStr),
         orderBy("visitDate", "desc"),
-        limit(200) // 1ヶ月で200件超えることはないのでこれで十分
+        limit(200)
     );
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// 🌟 修正3：通知取得を最新50件に制限（省エネ仕様）
+// --- 159行目付近の fetchMyNotifications を「最も安全な形」に修正 ---
 async function fetchMyNotifications() {
     const myName = sessionStorage.getItem('userName') || "";
     try {
         const q = query(
             collection(db, "notifications"), 
-            where("recipient", "==", myName),
-            orderBy("createdAt", "desc"),
-            limit(50)
+            where("recipient", "==", myName)
         );
         const snap = await getDocs(q);
-        myNotifications = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // メモリ内で最新50件に絞る（サーバー負荷は変わらず、インデックス不要）
+        myNotifications = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+            .slice(0, 50);
     } catch (e) {
         console.error("Fetch Notifications Error:", e);
         myNotifications = [];
