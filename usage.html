@@ -157,8 +157,15 @@
 
 // --- 144行目付近の loadRecords を以下に差し替え ---
 async function loadRecords(name, month) {
-    const startStr = `${currentYear}/${month.toString().padStart(2, '0')}/01`;
-    const endStr   = `${currentYear}/${month.toString().padStart(2, '0')}/31`;
+    const rawDate = sessionStorage.getItem('cp_daily_date') || "";
+    let year = 2026; 
+    if (rawDate.includes('-')) year = parseInt(rawDate.split('-')[0]);
+    if (rawDate.includes('/')) year = parseInt(rawDate.split('/')[0]); // スラッシュ対応追加
+
+    // 🌟 修正：ハイフン(-)ではなくスラッシュ(/)で日付を作る（DBの形式に合わせる）
+    const mStr = month.toString().padStart(2, '0');
+    const startStr = `${year}/${mStr}/01`;
+    const endStr   = `${year}/${mStr}/31`;
 
     const q = query(
         collection(db, "activity_records"), 
@@ -168,6 +175,7 @@ async function loadRecords(name, month) {
         orderBy("visitDate", "desc"),
         limit(200)
     );
+
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
