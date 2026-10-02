@@ -74,6 +74,11 @@
                     <div id="staffList" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar p-1 text-center"></div>
                 </div>
                 <div id="toolArea" class="hidden">
+                <div class="flex items-center justify-center gap-10 bg-white py-2 px-10 rounded-2xl shadow-sm border border-slate-200 mb-6 w-fit mx-auto">
+                    <button onclick="window.changeYear(-1)" class="text-slate-300 hover:text-slate-600 transition-colors"><i class="fa-solid fa-chevron-left fa-xl"></i></button>
+                    <span id="displayYear" class="text-xl font-black text-slate-700 min-w-[120px] text-center tracking-tighter">2026年</span>
+                    <button onclick="window.changeYear(1)" class="text-slate-300 hover:text-slate-600 transition-colors"><i class="fa-solid fa-chevron-right fa-xl"></i></button>
+                </div>                    
                     <div class="summary-card shadow-lg">
                         <div><p class="text-[9px] opacity-60 font-black uppercase mb-1">訪問件数</p><p class="text-xl font-black"><span id="sumActualVisits">0</span>件</p></div>
                         <div><p class="text-[9px] opacity-60 font-black uppercase mb-1">営業件数</p><p class="text-xl font-black"><span id="sumSales">0</span>件</p></div>
@@ -117,8 +122,8 @@
         import { db, TARGET_DEPTS, watchNotifications, getDisplayDept } from "./common.js";
         import { collection, getDocs, query, where, orderBy, limit, writeBatch, doc, updateDoc, arrayUnion, addDoc, serverTimestamp }
     　　　 from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        let allStaffs = [], currentStaffRecords = [], selectedName = "", currentM = new Date().getMonth() + 1, recordImageMap = {}, myNotifications = [];
-
+        let allStaffs = [], currentStaffRecords = [], selectedName = "", currentM = new Date().getMonth() + 1, recordImageMap = {}, myNotifications = []
+        let currentYear = 2026; 
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
         const dateToNum = (s) => {
             if (!s) return "";
@@ -152,13 +157,8 @@
 
 // --- 144行目付近の loadRecords を以下に差し替え ---
 async function loadRecords(name, month) {
-    // 🌟 修正：セッションにある日付、または 2026年 をデフォルトにする
-    const rawDate = sessionStorage.getItem('cp_daily_date') || "";
-    let year = 2026; 
-    if (rawDate.includes('-')) year = parseInt(rawDate.split('-')[0]);
-
-    const startStr = `${year}/${month.toString().padStart(2, '0')}/01`;
-    const endStr   = `${year}/${month.toString().padStart(2, '0')}/31`;
+    const startStr = `${currentYear}/${month.toString().padStart(2, '0')}/01`;
+    const endStr   = `${currentYear}/${month.toString().padStart(2, '0')}/31`;
 
     const q = query(
         collection(db, "activity_records"), 
@@ -172,6 +172,29 @@ async function loadRecords(name, month) {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+        // 🌟 修正：年を切り替える関数
+        window.changeYear = async (v) => {
+            currentYear += v;
+            const displayEl = document.getElementById('displayYear');
+            if (displayEl) displayEl.innerText = `${currentYear}年`;
+            if (selectedName) {
+                // 年が変わったら即座に再取得（省エネ仕様）
+                currentStaffRecords = await loadRecords(selectedName, currentM);
+                window.renderAccordion();
+            }
+        };
+
+        // 🌟 修正：カレンダーからの年を引き継ぐ（init関数の最後の方、194行目付近に追加も可）
+        // ここでは安全のために関数外に置いておきます
+        const jDate = sessionStorage.getItem('cp_daily_date');
+        if (jDate && jDate.includes('-')) {
+            currentYear = parseInt(jDate.split('-')[0]);
+            // 画面表示を更新（少し待ってから実行）
+            setTimeout(() => {
+                const el = document.getElementById('displayYear');
+                if (el) el.innerText = `${currentYear}年`;
+            }, 100);
+        }  
 // --- 159行目付近の fetchMyNotifications を「最も安全な形」に修正 ---
 async function fetchMyNotifications() {
     const myName = sessionStorage.getItem('userName') || "";
