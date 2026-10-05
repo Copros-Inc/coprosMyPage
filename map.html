@@ -108,14 +108,16 @@
 
         window.clearAllPins = () => { markersLayer.clearLayers(); allFetchedCustomers = []; log("地図をクリアしました。"); };
 
-        function addPin(c) {
-            let color = '#94a3b8';
-            if (c.lastVisit && c.lastVisit !== "未訪問") {
-                const diffDays = (new Date() - new Date(c.lastVisit.replace(/\//g, '-'))) / (1000 * 60 * 60 * 24);
-                if (diffDays < 30) color = '#0ea5e9';
-                else if (diffDays > 90) color = '#ef4444';
-                else color = '#ff7e11';
-            }
+function addPin(c) {
+    let color = '#94a3b8';
+    // 🌟 カラム名を lastVisitDate に修正
+    const visitDate = c.lastVisitDate || c.lastVisit; 
+    if (visitDate && visitDate !== "未訪問") {
+        const diffDays = (new Date() - new Date(visitDate.replace(/\//g, '-'))) / (1000 * 60 * 60 * 24);
+        if (diffDays < 30) color = '#0ea5e9';
+        else if (diffDays > 90) color = '#ef4444';
+        else color = '#ff7e11';
+    }
             const icon = L.divIcon({ 
                 html: `<div class="custom-pin" style="background-color:${color};"><i class="fa-solid fa-building"></i></div>`, 
                 className: '', iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -28] 
@@ -158,42 +160,40 @@
             }, (err) => alert("位置情報の取得に失敗しました"));
         };
 
-        window.initMap = async (mode = 'recent') => {
-            const keyword = document.getElementById('mapSearchInput').value.trim();
-            const type = document.getElementById('typeFilter').value;
+window.initMap = async (mode = 'recent') => {
+    const keyword = document.getElementById('mapSearchInput').value.trim();
+    const type = document.getElementById('typeFilter').value;
+    
+    log("データを照合中...");
+    const ref = collection(db, "customers");
+    let q;
 
-            // 🌟 修正：検索キーワードも属性選択もない場合は何もしない（暴走防止）
-            if (mode === 'recent' && !keyword && type === 'ALL') {
-                log("検索条件を入力してください");
-                return;
-            }
-            
-            log("データを照合中...");
-            const ref = collection(db, "customers");
-            
-            // シンプルなクエリ（インデックスエラーを避ける）
-            let q = query(ref, limit(200)); 
-            if (keyword) {
-                q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
-            }
+    if (keyword) {
+        // キーワード検索時
+        q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
+    } else if (mode === 'recent') {
+        // 🌟爆速ポイント：最新100件を更新日順に取得
+        q = query(ref, orderBy("updatedAt", "desc"), limit(100));
+    } else if (mode === 'more') {
+        // 表示を増やす（簡易的に200件まで拡大）
+        q = query(ref, orderBy("updatedAt", "desc"), limit(300));
+    }
 
-            try {
-                const snap = await getDocs(q);
-                if (snap.empty) { log("該当なし"); return; }
-
-                const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-                // 🌟 最重要：自動変換(getCoords)を完全に廃止し、座標がある人だけを表示
-                const valid = docs.filter(c => c.lat && c.lng);
-
-                if (valid.length === 0) {
-                    log("表示できる座標データがありません。Excelで座標を登録してください。");
-                } else {
-                    renderMarkers(valid, true);
-                    log(`${valid.length}件表示しました`);
-                }
-            } catch (e) { console.error(e); }
-        };
+    try {
+        const snap = await getDocs(q);
+        const valid = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.lat && c.lng);
+        
+        if (valid.length === 0) {
+            log("該当する座標データがありません");
+        } else {
+            renderMarkers(valid, true);
+            log(`${valid.length}件表示しました`);
+        }
+    } catch (e) { 
+        console.error(e); 
+        log("エラー：インデックス作成が必要です", "error");
+    }
+};
 
         // 🌟 起動時の自動実行を停止
         // window.initMap(); 
@@ -207,7 +207,7 @@
         window.locateMe = () => map.locate({setView: true, maxZoom: 15});
         
         // 🌟 起動時に実行
-        window.initMap();
+        window.locateMe();
     </script>
 </body>
 </html>
