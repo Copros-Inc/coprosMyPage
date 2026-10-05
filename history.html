@@ -52,6 +52,9 @@
                     </div>
                     <div class="flex gap-2 w-full lg:w-auto">
                         <button type="button" onclick="window.saveDraft()" class="flex-1 lg:flex-none px-6 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-50 shadow-sm transition-all">下書き保存</button>
+<button type="button" id="deleteBtn" class="hidden px-6 py-2.5 bg-rose-50 text-rose-500 border border-rose-200 rounded-xl font-bold text-sm hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
+    <i class="fa-solid fa-trash-can"></i> 削除
+</button>                     
                         <button type="button" id="submitBtnTop" class="flex-1 lg:flex-none px-10 py-2.5 bg-[#004098] text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
                             <i class="fa-solid fa-paper-plane"></i> 登録を実行
                         </button>
@@ -727,14 +730,17 @@ document.getElementById('submitBtnTop').onclick = async () => {
 
         const blocks = document.querySelectorAll('.report-block');
         
-        // 🌟 2. 各報告ブロックを保存（matchKeyを追加）
+        // 🌟 2. 各報告ブロックを保存（新規・編集の自動判定）
+        const urlParams = new URLSearchParams(window.location.search);
+        const editId = urlParams.get('editId');
+
         await Promise.all([...blocks].map(b => {
             const staffName = b.querySelector('.customer-staff-dropdown').value;
             const companion = document.getElementById('companionDisplay').value;
 
-            return addDoc(collection(db, "activity_records"), {
+            const recordData = {
                 customerName:      customer,
-                matchKey:          matchKey, // 🌟 これを追加
+                matchKey:          matchKey,
                 customerRank:      customerRank,
                 customerAttr:      customerAttr,
                 activityType:      document.getElementById('activityType').value,
@@ -754,8 +760,18 @@ document.getElementById('submitBtnTop').onclick = async () => {
                 nextVisitDate:     (document.getElementById('nextVisitDate').value || "").replace(/-/g, '/'),
                 staffThoughts:     b.querySelector('.staff-thoughts').value,
                 circularNames:     cNames,
-                createdAt:         serverTimestamp()
-            });
+                updatedAt:         serverTimestamp()
+            };
+
+            if (editId) {
+                // 🌟 編集時は既存ドキュメントを上書き
+                const { setDoc } = import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+                return setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
+            } else {
+                // 🌟 新規時は新しいドキュメントを作成
+                recordData.createdAt = serverTimestamp();
+                return addDoc(collection(db, "activity_records"), recordData);
+            }
         }));
 
         // 2. 回覧通知の作成（自分も含めて全員に送る）
@@ -811,6 +827,55 @@ document.getElementById('submitBtnTop').onclick = async () => {
             localStorage.setItem('cp_history_draft', JSON.stringify(draftData));
             alert("ブラウザに下書きを保存しました。");
         };
+ // 🌟 編集モードの判定ロジックをここに追加
+(async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('editId');
+    if (!editId) return;
+
+    // データの取得
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const docSnap = await getDoc(doc(db, "activity_records", editId));
+    
+    if (docSnap.exists()) {
+        const d = docSnap.data();
+        document.querySelector('h1').innerText = "実績の修正";
+        document.getElementById('submitBtnTop').innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存';
+        document.getElementById('deleteBtn').classList.remove('hidden');
+        
+        // フォームに値をセット
+        document.getElementById('customerSearch').value = d.customerName || '';
+        document.getElementById('autoRank').value = d.customerRank || '';
+        document.getElementById('autoType').value = d.customerAttr || '';
+        document.getElementById('activityType').value = d.activityType || '';
+        document.getElementById('visitDate').value = d.visitDate ? d.visitDate.replace(/\//g, '-') : '';
+        document.getElementById('startTime').value = d.startTime || '';
+        document.getElementById('endTime').value = d.endTime || '';
+        document.getElementById('visitorName').value = d.visitorName || '';
+        document.getElementById('companionDisplay').value = d.companion || '';
+        document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
+        
+        // 詳細報告のセット
+        const b = document.querySelector('.report-block');
+        if (b) {
+            b.querySelector('.customer-report').value = d.content || '';
+            b.querySelector('.staff-thoughts').value = d.staffThoughts || '';
+            if(d.qualData1) b.querySelector('.qual-data-1').value = d.qualData1;
+            if(d.qualData2) b.querySelector('.qual-data-2').value = d.qualData2;
+            if(d.qualData3) b.querySelector('.qual-data-3').value = d.qualData3;
+            if(d.qualFree) b.querySelector('.qual-free').value = d.qualFree;
+        }
+
+        // 削除ボタンの動作
+        document.getElementById('deleteBtn').onclick = async () => {
+            if(!confirm("この実績を完全に削除してもよろしいですか？")) return;
+            const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+            await deleteDoc(doc(db, "activity_records", editId));
+            alert("削除しました");
+            location.href = 'list_records.html';
+        };
+    }
+})();       
         init();
     </script>
 </body>
