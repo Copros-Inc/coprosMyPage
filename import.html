@@ -69,9 +69,9 @@
     let staffMap = new Map();
 
     const mapping = {
-        customers: "A:名 | B:カナ | C:ランク | D:属性 | E:住所 | F:電話 | G:回数 | H:最終訪問",
+        customers: "A:お客様名 | B:カナ | C:ランク | D:属性 | E:住所 | F:電話 | G:回数 | H:最終 | I:lat | J:lng",
         staffs: "A:ID | B:氏名 | C:パス | D:メール | E:権限 | F:状態 | G:部署",
-        activity_records: "A:客名 | B:ランク | C:属性 | D:担当 | E:開始 | F:終了 | G:内容 | H:訪問者 | I:同行 | J:定性1 | K:定性2 | L:定性3 | M:自由 | N:報告 | O:考え"
+        activity_records: "A:お客様名 | B:ランク | C:属性 | D:担当 | E:開始 | F:終了 | G:内容 | H:訪問者 | I:同行 | J:定性1 | K:定性2 | L:定性3 | M:自由 | N:報告 | O:考え"
     };
 
     // 🌟 高度な行分割（セル内の改行を保護する）
@@ -178,21 +178,30 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
                 // currentMode (customers 等) に応じてリファレンスを作成
                 const ref = doc(collection(db, currentMode));
 
-                if (currentMode === 'customers') {
-                    const rawName = col[0]?.trim() || "";
-                    batch.set(ref, {
-                       name: rawName,
-                       matchKey: createMatchKey(rawName),
-                       kana: col[1]?.trim() || "",
-                       rank: col[2]?.trim() || "-",
-                       type: col[3]?.trim() || "-",
-                       address: col[4]?.trim() || "",
-                       tel: col[5]?.trim() || "",
-                       visitCount: parseInt(col[6]) || 0,
-                       lastVisitDate: cleanDate(col[7]),
-                       updatedAt: serverTimestamp()
-                    });
-                } 
+if (currentMode === 'customers') {
+    const rawName = col[0]?.trim() || "";
+    const mKey = createMatchKey(rawName); // 名寄せ用の合言葉
+    if (!mKey) return; // 名前がなければスキップ
+
+    // 🌟省エネの極意：ドキュメントIDに mKey を使うことで、
+    // 事前の「検索（読み取り）」を不要にし、いきなり保存（書き込み）します。
+    const customerRef = doc(db, "customers", mKey); 
+
+    batch.set(customerRef, {
+       name: rawName,
+       matchKey: mKey,
+       kana: col[1]?.trim() || "",
+       rank: col[2]?.trim() || "-",
+       type: col[3]?.trim() || "-",
+       address: col[4]?.trim() || "",
+       tel: col[5]?.trim() || "",
+       visitCount: parseInt(col[6]) || 0,
+       lastVisitDate: cleanDate(col[7]),
+       lat: col[8] ? parseFloat(col[8]) : null, // 🌟追加：I列(緯度)
+       lng: col[9] ? parseFloat(col[9]) : null, // 🌟追加：J列(経度)
+       updatedAt: serverTimestamp()
+    }, { merge: true }); // 🌟既存のデータがある場合は「合体」させる
+}
                 else if (currentMode === 'activity_records') {
                     const rawCustName = col[0]?.trim() || "";
                     const startFull   = (col[4]||"").trim().split(' '); // E列
