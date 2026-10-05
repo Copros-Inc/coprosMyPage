@@ -140,7 +140,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db } from "./common.js";
+        import { db, getCoords } from "./common.js";
         import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -203,17 +203,23 @@ const createMatchKey = (s) => {
             const btns = [document.getElementById('saveBtnTop'), document.getElementById('saveBtnBottom'), document.getElementById('deleteBtn')];
             btns.forEach(b => b.disabled = true);
 
-// 173行目付近の data オブジェクトを修正
-            const nameVal = document.getElementById('name').value.trim(); // 名前を取得
+            const nameVal = document.getElementById('name').value.trim();
+            const addrVal = document.getElementById('address').value.trim(); // 🌟 住所を取得
+
+            // 🌟 追加：住所から座標を自動取得（魔法の1行）
+            const coords = await getCoords(addrVal);
+
             const data = {
                 category: document.querySelector('input[name="category"]:checked').value,
                 name: nameVal,
-                matchKey: createMatchKey(nameVal), // 🌟 常に最新の合言葉を保存
+                matchKey: createMatchKey(nameVal),
                 kana: document.getElementById('kana').value.trim(),
                 rank: document.getElementById('rank').value,
                 type: document.getElementById('type').value,
-                address: document.getElementById('address').value.trim(),
+                address: addrVal,
                 tel: document.getElementById('tel').value.trim(),
+                lat: coords ? coords.lat : null, // 🌟 座標をセット
+                lng: coords ? coords.lng : null, // 🌟 座標をセット
                 updatedAt: serverTimestamp()
             };
 
