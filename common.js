@@ -234,3 +234,15 @@ export function getDisplayDept(deptName) {
     if (!deptName) return "その他の部署";
     return TARGET_DEPTS.includes(deptName) ? deptName : "その他の部署";
 }
+
+export async function getCoords(address) {
+    if (!address) return null;
+    try {
+        const res = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(address)}`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+            return { lat: data[0].geometry.coordinates[1], lng: data[0].geometry.coordinates[0] };
+        }
+    } catch (e) { console.error("Geocoding Error:", e); }
+    return null;
+}
