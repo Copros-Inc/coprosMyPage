@@ -314,7 +314,7 @@ const createMatchKey = (s) => {
 
         async function init() {
             try {
-                // 1. ユーザー名と日付の初期設定
+                // 1. 基本設定
                 document.getElementById('visitorName').value = sessionStorage.getItem('userName') || "";
                 const jumpDate = sessionStorage.getItem('cp_add_date');
                 if (jumpDate) { 
@@ -323,8 +323,12 @@ const createMatchKey = (s) => {
                 } else { 
                     document.getElementById('visitDate').valueAsDate = new Date(); 
                 }
+                if (localStorage.getItem('cp_keep_circular') === 'true') {
+                    document.getElementById('keepCircular').checked = true;
+                    document.getElementById('circularDisplay').innerText = localStorage.getItem('cp_last_circular') || '未選択';
+                }
 
-                // 2. マスタと社員データの読み込み
+                // 2. マスタとスタッフの読み込み
                 const [loadedMaster, loadedStaffs] = await Promise.all([
                     loadMasterOptionsWithCache(), loadStaffsWithCache()
                 ]);
@@ -338,13 +342,12 @@ const createMatchKey = (s) => {
                 
                 setupCustomerSearch();
 
-                // 🌟 3. 編集モードか新規登録(一覧から遷移)かの判定を1本化する
+                // 🌟ここからが修正のキモです
                 const urlParams = new URLSearchParams(window.location.search);
-                const editId = urlParams.get('editId'); // 修正時
-                const pName  = urlParams.get('name');   // 新規時(一覧から)
+                const editId = urlParams.get('editId');
 
                 if (editId) {
-                    // --- 【修正モード】 ---
+                    // --- 【修正モード】データを読み込む ---
                     const docSnap = await getDoc(doc(db, "activity_records", editId));
                     if (docSnap.exists()) {
                         const d = docSnap.data();
@@ -373,33 +376,12 @@ const createMatchKey = (s) => {
                         }
                     }
                 } else {
-                    // --- 【新規登録モード】 ---
-                    applyUrlParams(); // URLから顧客名等を自動入力（一覧からの遷移用）
-                    
-                    // 下書き復元（名前指定での遷移でない時のみ）
-                    const saved = localStorage.getItem('cp_history_draft');
-                    if (saved && !pName) {
-                        if (confirm("下書きを復元しますか？")) {
-                            const d = JSON.parse(saved);
-                            document.getElementById('customerSearch').value = d.customerName || '';
-                            // ...他の下書き復元ロジック（以下略、必要なら追加可能）
-                        }
-                    }
-                    // 報告欄がなければ作成
+                    // --- 【新規モード】 ---
+                    applyUrlParams(); // これでお客様一覧からの名前が入る
                     if (document.getElementById('reportContainer').children.length === 0) {
                         window.addReportBlock();
                     }
                 }
-
-                // 時間の初期値
-                const startTimeEl = document.getElementById('startTime');
-                if (startTimeEl && !startTimeEl.value) {
-                    const now = new Date();
-                    startTimeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                    now.setMinutes(now.getMinutes() + 15);
-                    document.getElementById('endTime').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                }
-
             } catch (e) { console.error("init error:", e); }
         }
             
@@ -837,87 +819,7 @@ document.getElementById('submitBtnTop').onclick = async () => {
             localStorage.setItem('cp_history_draft', JSON.stringify(draftData));
             alert("ブラウザに下書きを保存しました。");
         };
- // 🌟 編集モードの判定ロジックをここに追加
-(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const editId = urlParams.get('editId');
-    if (!editId) return;
-
-    // データの取得
-    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-    const docSnap = await getDoc(doc(db, "activity_records", editId));
-    
-    if (docSnap.exists()) {
-        const d = docSnap.data();
-        document.querySelector('h1').innerText = "実績の修正";
-        document.getElementById('submitBtnTop').innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存';
-        document.getElementById('deleteBtn').classList.remove('hidden');
-        
-        // フォームに値をセット
-        document.getElementById('customerSearch').value = d.customerName || '';
-        document.getElementById('autoRank').value = d.customerRank || '';
-        document.getElementById('autoType').value = d.customerAttr || '';
-        document.getElementById('activityType').value = d.activityType || '';
-        document.getElementById('visitDate').value = d.visitDate ? d.visitDate.replace(/\//g, '-') : '';
-        document.getElementById('startTime').value = d.startTime || '';
-        document.getElementById('endTime').value = d.endTime || '';
-        document.getElementById('visitorName').value = d.visitorName || '';
-        document.getElementById('companionDisplay').value = d.companion || '';
-        document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
-        
-        // 詳細報告のセット
-        const b = document.querySelector('.report-block');
-        if (b) {
-            b.querySelector('.customer-report').value = d.content || '';
-            b.querySelector('.staff-thoughts').value = d.staffThoughts || '';
-            if(d.qualData1) b.querySelector('.qual-data-1').value = d.qualData1;
-            if(d.qualData2) b.querySelector('.qual-data-2').value = d.qualData2;
-            if(d.qualData3) b.querySelector('.qual-data-3').value = d.qualData3;
-            if(d.qualFree) b.querySelector('.qual-free').value = d.qualFree;
-        }
-
-        // 削除ボタンの動作
-document.getElementById('deleteBtn').onclick = async () => {
-    if(!confirm("この実績を完全に削除しますか？\n(訪問回数やカレンダー、回覧もすべて取り消されます)")) return;
-    
-    try {
-        const { deleteDoc, doc, getDocs, query, collection, where, writeBatch, increment } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-        const batch = writeBatch(db);
-
-        // 1. お客様マスターの訪問回数を「-1」し、最終訪問日を再計算（または現状維持）
-        if (d.matchKey) {
-            const qCust = query(collection(db, "customers"), where("matchKey", "==", d.matchKey), limit(1));
-            const qSnap = await getDocs(qCust);
-            if (!qSnap.empty) {
-                batch.update(qSnap.docs[0].ref, {
-                    visitCount: increment(-1) // 🌟 訪問回数を1減らす
-                });
-            }
-        }
-
-        // 2. カレンダー・回覧通知（notifications）の関連データを削除
-        // visitDate と customerName が一致する通知を探して削除
-        const qNotify = query(collection(db, "notifications"), 
-            where("customerName", "==", d.customerName),
-            where("visitDate", "==", d.visitDate));
-        const nSnap = await getDocs(qNotify);
-        nSnap.forEach(ndoc => batch.delete(ndoc.ref));
-
-        // 3. 実績本体の削除
-        batch.delete(doc(db, "activity_records", editId));
-
-        // すべてまとめて実行（一蓮托生で消えます）
-        await batch.commit();
-
-        // キャッシュクリア（カレンダー用など）
-        sessionStorage.clear(); 
-
-        alert("すべて連携して削除完了しました");
-        location.href = 'list_records.html';
-    } catch(e) { alert("削除エラー: " + e.message); }
-};
-    }
-})();       
+      
         init();
     </script>
 </body>
