@@ -725,7 +725,7 @@ document.getElementById('submitBtnTop').onclick = async () => {
         const blocks = document.querySelectorAll('.report-block');
         
        // 🌟 3. 各報告ブロックを保存（新規・編集の自動判定）
-        await Promise.all([...blocks].map(b => {
+        await Promise.all([...blocks].map(async (b) => {
             const staffName = b.querySelector('.customer-staff-dropdown').value;
             const companion = document.getElementById('companionDisplay').value;
 
