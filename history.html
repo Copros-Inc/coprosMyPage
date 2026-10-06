@@ -240,7 +240,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, TARGET_DEPTS } from "./common.js";
-        import { collection, getDocs, getDoc, addDoc, doc, serverTimestamp, query, where, limit, orderBy, updateDoc }
+        import { collection, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, query, where, limit, orderBy, updateDoc }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -763,11 +763,10 @@ document.getElementById('submitBtnTop').onclick = async () => {
                 updatedAt:         serverTimestamp()
             };
 
-            if (editId) {
-                // 🌟 編集時は既存ドキュメントを上書き
-                const { setDoc } = import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
-                return setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
-            } else {
+if (editId) {
+    // 🌟 修正：先ほどインポートした setDoc を直接使います
+    return setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
+} else {
                 // 🌟 新規時は新しいドキュメントを作成
                 recordData.createdAt = serverTimestamp();
                 return addDoc(collection(db, "activity_records"), recordData);
