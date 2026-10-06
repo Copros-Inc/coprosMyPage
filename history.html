@@ -880,8 +880,11 @@ document.getElementById('deleteBtn').onclick = async () => {
 
         // 3. 実績本体を削除
         await deleteDoc(docRef);
+
+        // 🌟 削除成功時にキャッシュをクリア（重要！）
+        sessionStorage.clear(); // 全キャッシュを破棄して一覧を強制再読込させる
         
-        alert("削除と整合性の調整が完了しました");
+        alert("削除完了！一覧から消去されました。");
         location.href = 'daily_report.html'; // 実績一覧（日報）へ戻る
     } catch (e) {
         console.error(e);
