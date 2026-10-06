@@ -378,14 +378,22 @@ const createMatchKey = (s) => {
                         document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
                         document.getElementById('nextVisitDate').value = d.nextVisitDate ? d.nextVisitDate.replace(/\//g, '-') : '';
 
-                        // 報告欄のセット（既存のブロックを一度クリアしてから再構築）
-                        document.getElementById('reportContainer').innerHTML = '';
-                        window.addReportBlock(); // 1つ目のブロックを作成
+                        // 🌟 担当者選択肢を先に生成（これがないと値をセットできない）
+                        window.syncAllStaffSelects(d.customerStaffName || '');
+
+                        // 報告欄のセット
+                        const container = document.getElementById('reportContainer');
+                        container.innerHTML = '';
+                        window.addReportBlock(); // ブロック生成
                         
-                        const b = document.querySelector('.report-block');
+                        // 🌟 生成直後のブロックを特定して値を流し込む
+                        const blocks = container.querySelectorAll('.report-block');
+                        const b = blocks[blocks.length - 1];
                         if (b) {
-                            // 🌟 定性データと詳細内容の流し込みを追加
-                            b.querySelector('.customer-staff-dropdown').value = d.customerStaffName || '';
+                            // select要素は option が存在しないとセットされないため、明示的に追加・セット
+                            const staffSelect = b.querySelector('.customer-staff-dropdown');
+                            if (staffSelect) staffSelect.value = d.customerStaffName || '';
+
                             b.querySelector('.qual-data-1').value = d.qualData1 || '';
                             b.querySelector('.qual-data-2').value = d.qualData2 || '';
                             b.querySelector('.qual-data-3').value = d.qualData3 || '';
