@@ -347,7 +347,6 @@ const createMatchKey = (s) => {
                 const editId = urlParams.get('editId');
 
                 if (editId) {
-                    // --- 【修正モード】データを読み込む ---
                     const docSnap = await getDoc(doc(db, "activity_records", editId));
                     if (docSnap.exists()) {
                         const d = docSnap.data();
@@ -366,7 +365,6 @@ const createMatchKey = (s) => {
                         document.getElementById('companionDisplay').value = d.companion || '';
                         document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
                         
-                        // 報告欄のセット
                         document.getElementById('reportContainer').innerHTML = '';
                         window.addReportBlock();
                         const b = document.querySelector('.report-block');
@@ -376,12 +374,15 @@ const createMatchKey = (s) => {
                         }
                     }
                 } else {
-                    // --- 【新規モード】 ---
-                    applyUrlParams(); // これでお客様一覧からの名前が入る
-                    if (document.getElementById('reportContainer').children.length === 0) {
-                        window.addReportBlock();
-                    }
+                    // 【重要】新規の時のみURLパラメータを適用
+                    applyUrlParams();
                 }
+
+                // 共通：報告欄が空なら1つ追加
+                if (document.getElementById('reportContainer').children.length === 0) {
+                    window.addReportBlock();
+                }
+                
             } catch (e) { console.error("init error:", e); }
         }
             
@@ -709,11 +710,12 @@ document.getElementById('submitBtnTop').onclick = async () => {
         const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
         
         // 🌟 1. 編集用IDの取得を最初に行う（これでエラーを防止）
+// 修正後（重複した query 定義を整理し、editId の判定を確実にする）
         const params = new URLSearchParams(window.location.search);
         const editId = params.get('editId');
 
-        // 🌟 2. お客様マスターの更新（新規登録のときだけカウントアップ）
         if (!editId) {
+            // 新規登録時のみ顧客情報の訪問カウントをアップ (Read/Write節約)
             const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
             const qSnap = await getDocs(qCust);
             if (!qSnap.empty) {
@@ -819,7 +821,50 @@ document.getElementById('submitBtnTop').onclick = async () => {
             localStorage.setItem('cp_history_draft', JSON.stringify(draftData));
             alert("ブラウザに下書きを保存しました。");
         };
-      
+
+document.getElementById('deleteBtn').onclick = async () => {
+    if (!confirm("この実績を削除しますか？\n（顧客の訪問回数も-1され、通知も削除されます）")) return;
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('editId');
+    if (!editId) return;
+
+    try {
+        const docRef = doc(db, "activity_records", editId);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const d = docSnap.data();
+            
+            // 1. 顧客マスターの訪問回数を -1 する (省エネmatchKey検索)
+            const qCust = query(collection(db, "customers"), where("matchKey", "==", d.matchKey), limit(1));
+            const qSnap = await getDocs(qCust);
+            if (!qSnap.empty) {
+                const targetDoc = qSnap.docs[0];
+                await updateDoc(targetDoc.ref, {
+                    visitCount: Math.max(0, (parseInt(targetDoc.data().visitCount) || 0) - 1)
+                });
+            }
+
+            // 2. この実績に関連する「回覧通知」も削除する (省エネ)
+            const qNoti = query(collection(db, "notifications"), 
+                                where("customerName", "==", d.customerName), 
+                                where("visitDate", "==", d.visitDate));
+            const nSnap = await getDocs(qNoti);
+            const batch = writeBatch(db); // まとめて削除
+            nSnap.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+        }
+
+        // 3. 実績本体を削除
+        await deleteDoc(docRef);
+        
+        alert("削除と整合性の調整が完了しました");
+        location.href = 'daily_report.html'; // 実績一覧（日報）へ戻る
+    } catch (e) {
+        console.error(e);
+        alert("削除エラー: " + e.message);
+    }
+};        
         init();
     </script>
 </body>
