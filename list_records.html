@@ -341,14 +341,25 @@
             document.getElementById('totalDisplay').innerText = dataList.length;
         }
 
+// 🌟 修正：明示的に window に登録し、確実に history.html へ飛ばす
 window.editSelectedRecord = () => {
     const checks = document.querySelectorAll('.record-check:checked');
-    if (checks.length !== 1) {
-        return alert(checks.length === 0 ? "編集したい実績にチェックを入れてください" : "一度に編集できるのは1件のみです");
+    
+    if (checks.length === 0) {
+        alert("編集したい実績にチェックを入れてください");
+        return;
     }
-    // チェックされたドキュメントIDを取得して編集画面へ
+    if (checks.length > 1) {
+        alert("一度に編集できるのは1件のみです");
+        return;
+    }
+
     const docId = checks[0].value;
-    location.href = `history.html?editId=${docId}`;
+    console.log("Editing Record ID:", docId); // デバッグ用
+
+    // 🌟 確実に遷移させる
+    const targetUrl = `history.html?editId=${docId}`;
+    location.assign(targetUrl);
 };
 
         window.clearSearch = () => {
