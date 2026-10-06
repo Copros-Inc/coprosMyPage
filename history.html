@@ -881,8 +881,12 @@ document.getElementById('deleteBtn').onclick = async () => {
         // 3. 実績本体を削除
         await deleteDoc(docRef);
 
-        // 🌟 削除成功時にキャッシュをクリア（重要！）
-        sessionStorage.clear(); // 全キャッシュを破棄して一覧を強制再読込させる
+        // 🌟 修正：全消去ではなく、日報とカレンダーのキャッシュだけを狙って消す
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('cp_cal_cache_') || key.startsWith('cp_records_')) {
+                sessionStorage.removeItem(key);
+            }
+        });
         
         alert("削除完了！一覧から消去されました。");
         location.href = 'daily_report.html'; // 実績一覧（日報）へ戻る
