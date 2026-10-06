@@ -386,12 +386,6 @@ const createMatchKey = (s) => {
             } catch (e) { console.error("init error:", e); }
         }
             
-             // 🌟 ここに挿入！「もし報告欄が1つもなければ、1つ目を作る」という命令です
-            if (document.getElementById('reportContainer').children.length === 0) {
-                window.addReportBlock();
-            }
-        }
-
         window.syncAllStaffSelects = (val) => {
             const names = val.split(/[,、\s\u3000]+/).filter(n => n.trim() !== "");
             const selects = document.querySelectorAll('.customer-staff-dropdown');
