@@ -148,84 +148,83 @@
             window.executeSearch('all');
         }
 
-        window.executeSearch = async (kana = 'all', append = false) => {
-            const name = document.getElementById('detailName').value.trim();
-            const addr = document.getElementById('detailAddress').value.trim();
-            const rank = document.getElementById('detailRank').value;
-            const type = document.getElementById('detailType').value;
-            
-            if (!append) {
-                const cacheKey = getCacheKey(kana, name, addr, rank, type);
-                const cached = loadFromCache(cacheKey);
-                if (cached) { 
-                    allCustomers = cached; 
-                    renderTable(allCustomers); 
-                    return; 
-                }
-                lastVisible = null;
-                allCustomers = [];
-            }
+window.executeSearch = async (kana = 'all', append = false) => {
+    const name = document.getElementById('detailName').value.trim();
+    const addr = document.getElementById('detailAddress').value.trim();
+    const rank = document.getElementById('detailRank').value;
+    const type = document.getElementById('detailType').value;
 
-            const tbody = document.getElementById('customerTable');
-            if (!append) tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-400 animate-pulse">検索中...</td></tr>`;
+    if (!append) {
+        lastVisible = null;
+        allCustomers = [];
+    }
 
-            try {
-                const ref = collection(db, "customers");
-                let constraints = [];
+    const tbody = document.getElementById('customerTable');
+    if (!append) tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-400 animate-pulse">同期中...</td></tr>`;
 
-                if (kana !== 'all') {
-                    const range = {'あ':['ア','カ'],'か':['カ','サ'],'さ':['サ','タ'],'た':['タ','ナ'],'な':['ナ','ハ'],'は':['ハ','マ'],'ま':['マ','ヤ'],'や':['ヤ','ラ'],'ら':['ラ','ワ'],'わ':['ワ','ン'],'他':['!','ア']};
-                    const [start, end] = range[kana];
-                    constraints.push(where("kana", ">=", start), where("kana", "<", end));
-                } else if (name) {
-                    constraints.push(where("name", ">=", name), where("name", "<=", name + '\uf8ff'));
-                } else if (addr) {
-                    constraints.push(where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'));
-                }
+    try {
+        const ref = collection(db, "customers");
+        let constraints = [];
 
-                if (rank) constraints.push(where("rank", "==", rank));
-                if (type) constraints.push(where("type", "==", type));
+        // 🌟 1. 検索条件の構築（ここが「漏れ」を防ぐキモ）
+        if (name) {
+            // 名前検索がある場合は、名前を最優先（全データから探す）
+            constraints.push(where("name", ">=", name), where("name", "<=", name + '\uf8ff'));
+            constraints.push(orderBy("name"));
+        } else if (addr) {
+            // 住所検索がある場合
+            constraints.push(where("address", ">=", addr), where("address", "<=", addr + '\uf8ff'));
+            constraints.push(orderBy("address"));
+        } else if (kana !== 'all') {
+            // かな検索の場合
+            const range = {'あ':['ア','カ'],'か':['カ','サ'],'さ':['サ','タ'],'た':['タ','ナ'],'な':['ナ','ハ'],'は':['ハ','マ'],'ま':['マ','ヤ'],'や':['ヤ','ラ'],'ら':['ラ','ワ'],'わ':['ワ','ン'],'他':['!','ア']};
+            const [start, end] = range[kana];
+            constraints.push(where("kana", ">=", start), where("kana", "<", end));
+            constraints.push(orderBy("kana"));
+        } else {
+            // 何も指定がない場合は「最終訪問日」順（これが標準）
+            constraints.push(orderBy("lastVisitDate", "desc"));
+        }
 
-                if (name) {
-                    constraints.push(orderBy("name"));
-                } else if (addr) {
-                    constraints.push(orderBy("address"));
-                } else if (kana !== 'all') {
-                    constraints.push(orderBy("kana"));
-                } else {
-                    constraints.push(orderBy("lastVisitDate", "desc")); // 🌟 近日が上位
-                }
-                constraints.push(limit(20));
-                
-                if (append && lastVisible) {
-                    constraints.push(startAfter(lastVisible));
-                }
+        // 🌟 2. 共通フィルタ
+        if (rank) constraints.push(where("rank", "==", rank));
+        if (type) constraints.push(where("type", "==", type));
 
-                const q = query(ref, ...constraints);
-                const snap = await getDocs(q);
-                
-                if (snap.empty && !append) {
-                    tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-300 uppercase font-black">No Data Found</td></tr>`;
-                    document.getElementById('totalDisplay').innerText = 0;
-                    return;
-                }
+        // 🌟 3. 件数制限（ここを50に増やして Read 回数を減らす）
+        constraints.push(limit(50));
+        
+        if (append && lastVisible) {
+            constraints.push(startAfter(lastVisible));
+        }
 
-                lastVisible = snap.docs[snap.docs.length - 1];
-                const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                allCustomers = append ? [...allCustomers, ...newDocs] : newDocs;
+        const q = query(ref, ...constraints);
+        const snap = await getDocs(q);
+        
+        if (snap.empty && !append) {
+            tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-300 font-black">対象のお客様は見つかりませんでした</td></tr>`;
+            document.getElementById('totalDisplay').innerText = 0;
+            return;
+        }
 
-                renderTable(allCustomers);
+        lastVisible = snap.docs[snap.docs.length - 1];
+        const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allCustomers = append ? [...allCustomers, ...newDocs] : newDocs;
 
-                const moreBtn = document.getElementById('moreBtn');
-                if (snap.docs.length === 20) moreBtn.classList.remove('hidden');
-                else moreBtn.classList.add('hidden');
+        // 🌟 4. 重複排除（同じIDのデータが混じらないようにする）
+        const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
 
-            } catch (e) {
-                console.error(e);
-                tbody.innerHTML = `<tr><td colspan="10" class="p-16 text-center text-rose-400 font-bold">検索条件を絞り込んでください。</td></tr>`;
-            }
-        };
+        renderTable(uniqueCustomers);
 
+        const moreBtn = document.getElementById('moreBtn');
+        // 50件取得できていれば「もっと見る」を表示
+        if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
+        else moreBtn.classList.add('hidden');
+
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="10" class="p-16 text-center text-rose-400 font-bold">検索エラーが発生しました。条件を緩めてください。</td></tr>`;
+    }
+};
         window.setKanaFilter = (btn, kana) => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'text-white'));
             btn.classList.add('active', 'text-white');
