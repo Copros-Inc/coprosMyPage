@@ -461,16 +461,24 @@ function autoOpenFirst() {
                                 <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
                             </p>
                             <div class="space-y-3 mb-5">
-                                ${(data.comments || []).map(c => `
-                                    <div class="p-3 bg-white rounded-xl border border-blue-50 shadow-sm text-left">
-                                        <div class="flex justify-between items-center mb-1">
-                                            <span class="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">${c.sender} ➔ ${c.receiver}</span>
-                                            <span class="text-[9px] font-bold text-slate-400 font-mono">${c.date}</span>
-                                            ${c.sender === myName ? `<button onclick="window.deleteComment('${data.id}', idx, '${customerName}')" class="text-rose-400 hover:text-rose-600 ml-2 font-black">✕</button>` : ''}
-                                        </div>
-                                        <p class="text-xs font-bold text-slate-700 leading-relaxed">${c.text}</p>
-                                    </div>
-                                `).join('')}
+                ${(data.comments || []).map((c, idx) => `
+                    <div class="p-3 bg-white rounded-xl border border-blue-50 shadow-sm text-left relative">
+                        <div class="flex justify-between items-center mb-1">
+                            <div class="flex items-center gap-2">
+                                <!-- 🌟 日付を一番左に配置 -->
+                                <span class="text-[9px] font-bold text-slate-400 font-mono">${c.date}</span>
+                                <span class="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">${c.sender} ➔ ${c.receiver}</span>
+                            </div>
+                            <!-- 🌟 削除✕ボタン（自分のコメントのみ） -->
+                            ${c.sender === myName ? `
+                                <button onclick="window.deleteComment('${data.id}', ${idx}, '${customerName}')" 
+                                    class="text-rose-400 hover:text-rose-600 font-black text-sm p-1">
+                                    ✕
+                                </button>` : ''}
+                        </div>
+                        <p class="text-xs font-bold text-slate-700 leading-relaxed">${c.text}</p>
+                    </div>
+                `).join('')}
                             </div>
                             <div class="space-y-3 text-left">
                                 <textarea id="cmt-text-${data.id}" class="w-full p-3 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none min-h-[80px]" placeholder="コメントを入力..."></textarea>
