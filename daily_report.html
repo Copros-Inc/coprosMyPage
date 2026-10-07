@@ -384,53 +384,70 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
             window.closeModal();
         };
 
-        window.postComment = async (recordId, customerName, index, visitDate) => {
-            const text = document.getElementById(`cmt-text-${index}`).value.trim();
-            const receiver = document.getElementById(`cmt-to-display-${index}`).innerText;
-            const sender = sessionStorage.getItem('userName') || "管理者";
-            const fDate = visitDate.replace(/-/g, '/');
+window.postComment = async (recordId, customerName, index, visitDate) => {
+    const text = document.getElementById(`cmt-text-${index}`).value.trim();
+    const receiverRaw = document.getElementById(`cmt-to-display-${index}`).innerText;
+    const sender = sessionStorage.getItem('userName') || "管理者";
+    const fDate = visitDate.replace(/-/g, '/');
 
-            if (!text || receiver === '選択してください') return alert("内容を入力してください");
+    if (!text || receiverRaw === '選択してください') return alert("内容を入力してください");
 
-            try {
-                const now = new Date();
-                const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-                
-                // 1. 実績本体に書き込み
-                await updateDoc(doc(db, "activity_records", recordId), { 
-                    comments: arrayUnion({ sender, receiver, text, date: dateStr }) 
+    try {
+        const now = new Date();
+        const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+        
+        // 1. 実績本体にコメントを追加（ここは変更なし）
+        await updateDoc(doc(db, "activity_records", recordId), { 
+            comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
+        });
+
+        // 2. 通知対象者のリストアップ（自分を除外）
+        let targetRecipients = [];
+        if (receiverRaw === '全員') {
+            targetRecipients = allStaffs.map(s => s.name).filter(name => name !== sender);
+        } else {
+            targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
+        }
+
+        // 3. 通知のUpsert（更新または作成）
+        // 省エネのため、ループ内で await しますが、同じ人への重複はこれで防げます
+        const batch = [];
+        for (const recipient of targetRecipients) {
+            const qNoti = query(collection(db, "notifications"), 
+                where("recipient", "==", recipient),
+                where("customerName", "==", customerName),
+                where("visitDate", "==", fDate)
+            );
+            const nSnap = await getDocs(qNoti);
+
+            if (!nSnap.empty) {
+                // 既存通知があれば更新（未読に戻す）
+                await updateDoc(nSnap.docs[0].ref, { 
+                    isRead: false, 
+                    visitorName: sender,
+                    createdAt: serverTimestamp() 
                 });
+            } else {
+                // 新規通知作成
+                await addDoc(collection(db, "notifications"), { 
+                    recipient: recipient, 
+                    visitorName: sender, 
+                    customerName, 
+                    visitDate: fDate, 
+                    type: "コメント入電", 
+                    isRead: false, 
+                    createdAt: serverTimestamp() 
+                });
+            }
+        }
 
-                // 2. 🌟 重複防止：既存の通知があるか確認
-                const qNoti = query(collection(db, "notifications"), 
-                    where("recipient", "==", receiver),
-                    where("customerName", "==", customerName),
-                    where("visitDate", "==", fDate)
-                );
-                const nSnap = await getDocs(qNoti);
-
-                if (!nSnap.empty) {
-                    // すでに通知があれば、それを「未読」に戻して「時間」を更新するだけ
-                    await updateDoc(nSnap.docs[0].ref, { 
-                        isRead: false, 
-                        visitorName: sender, // 最後にコメントした人を表示
-                        createdAt: serverTimestamp() 
-                    });
-                } else {
-                    // 通知がなければ新規作成
-                    await addDoc(collection(db, "notifications"), { 
-                        recipient: receiver, visitorName: sender, customerName, 
-                        visitDate: fDate, type: "コメント入電", isRead: false, createdAt: serverTimestamp() 
-                    });
-                }
-
-                const [y, m] = visitDate.split(/[-/]/);
-                sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
-                alert("送信しました");
-                sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
-                location.reload();
-            } catch (e) { alert("送信エラー: " + e.message); }
-        };
+        const [y, m] = visitDate.split(/[-/]/);
+        sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
+        alert("送信しました");
+        sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
+        location.reload();
+    } catch (e) { alert("送信エラー: " + e.message); }
+};
 
         window.deleteComment = async (recordId, commentIdx) => {
             if (!confirm("自分のコメントを取り消しますか？")) return;
