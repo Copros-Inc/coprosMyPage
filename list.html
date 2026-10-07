@@ -213,12 +213,23 @@ window.executeSearch = async (kana = 'all', append = false) => {
         // 🌟 4. 重複排除（同じIDのデータが混じらないようにする）
         const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
 
+        // 🌟 追加：表示直前に「最終訪問日」の近日順で並び替える（JSソート）
+        uniqueCustomers.sort((a, b) => {
+            const dateA = (!a.lastVisitDate || a.lastVisitDate === "未訪問") ? "0000/00/00" : a.lastVisitDate;
+            const dateB = (!b.lastVisitDate || b.lastVisitDate === "未訪問") ? "0000/00/00" : b.lastVisitDate;
+            return dateB.localeCompare(dateA); 
+        });
+
         renderTable(uniqueCustomers);
 
         const moreBtn = document.getElementById('moreBtn');
-        // 50件取得できていれば「もっと見る」を表示
-        if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
-        else moreBtn.classList.add('hidden');
+        // 🌟 修正：今回取得した件数が 50件「ぴったり」の時だけボタンを出す
+        // 50件未満（例: 12件など）なら、もう次はないと判断して隠す
+        if (snap.docs.length === 50) {
+            moreBtn.classList.remove('hidden');
+        } else {
+            moreBtn.classList.add('hidden');
+        }
 
     } catch (e) {
         console.error(e);
