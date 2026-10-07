@@ -384,25 +384,33 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
             window.closeModal();
         };
 
-        // 🌟 修正版：これに丸ごと差し替えてください
         window.postComment = async (recordId, customerName, index, visitDate) => {
             const text = document.getElementById(`cmt-text-${index}`).value.trim();
             const receiver = document.getElementById(`cmt-to-display-${index}`).innerText;
             const sender = sessionStorage.getItem('userName') || "管理者";
 
-            if (!text || receiver === '選択してください') return alert("コメントと宛先を入力してください");
+            if (!text || receiver === '選択してください') return alert("内容と宛先を入力してください");
 
             try {
                 const now = new Date();
                 const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+                
+                // 1. 実績本体に書き込み
                 await updateDoc(doc(db, "activity_records", recordId), { 
                     comments: arrayUnion({ sender, receiver, text, date: dateStr }) 
                 });
+
+                // 2. 通知を作成
                 await addDoc(collection(db, "notifications"), { 
                     recipient: receiver, visitorName: sender, customerName, 
                     visitDate: visitDate.replace(/-/g, '/'), 
                     type: "コメント入電", isRead: false, createdAt: serverTimestamp() 
                 });
+
+                // 🌟 重要：キャッシュをクリア（これをしないと書き込めていないように見えます）
+                const [y, m] = visitDate.split(/[-/]/);
+                sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
+
                 alert("送信しました");
                 sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
                 location.reload();
