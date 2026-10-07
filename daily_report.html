@@ -457,19 +457,27 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
             } catch (e) { alert("送信エラー: " + e.message); }
         };
 
-        window.deleteComment = async (recordId, commentIdx) => {
-            if (!confirm("自分のコメントを取り消しますか？")) return;
-            try {
-                const ref = doc(db, "activity_records", recordId);
-                const docSnap = await getDoc(ref);
-                if (docSnap.exists()) {
-                    let comments = docSnap.data().comments || [];
-                    comments.splice(parseInt(commentIdx), 1);
-                    await updateDoc(ref, { comments: comments });
-                    alert("削除しました"); location.reload();
-                }
-            } catch (e) { alert("削除エラー: " + e.message); }
-        };
+window.deleteComment = async (recordId, commentIdx) => {
+    if (!confirm("自分のコメントを取り消しますか？")) return;
+    try {
+        // 日報画面は常に実績（activity_records）を消しに行きます
+        const ref = doc(db, "activity_records", recordId);
+        const docSnap = await getDoc(ref);
+        if (docSnap.exists()) {
+            let comments = docSnap.data().comments || [];
+            
+            // 🌟 修正：確実に数字として扱い、1つ削除
+            comments.splice(parseInt(commentIdx), 1); 
+            
+            await updateDoc(ref, { comments: comments });
+            alert("コメントを削除しました");
+            location.reload();
+        }
+    } catch (e) { 
+        console.error("削除エラー:", e);
+        alert("削除に失敗しました: " + e.message); 
+    }
+};
         init();
     </script>
       <!-- スタッフモーダル（見た目の部分） -->
