@@ -90,7 +90,7 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db } from "./common.js";
-        import { collection, getDocs, query, where, limit, arrayUnion, arrayRemove, doc, updateDoc, orderBy } 
+        import { collection, getDocs, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, doc, query, where, limit, arrayUnion, arrayRemove, serverTimestamp, orderBy } 
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // =========================================================
@@ -416,7 +416,14 @@ function autoOpenFirst() {
             <div class="detail-content text-slate-400 text-xs uppercase">${data.visitorDept || '不明'}</div>
         </div>
     </div>
-
+    <div class="flex justify-between items-center mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+        <div class="text-[10px] font-bold text-slate-400">
+            <i class="fa-solid fa-fingerprint mr-1"></i> ID: ${data.id}
+        </div>
+        <button onclick="location.href='history.html?editId=${data.id}'" class="px-6 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg font-black text-xs hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-pen-to-square"></i> この実績を修正・削除する
+        </button>
+    </div>
     <div class="mb-8">
         <p class="detail-label mb-3">定性データ分析</p>
         <div class="flex flex-wrap gap-2">
@@ -459,6 +466,7 @@ function autoOpenFirst() {
                                         <div class="flex justify-between items-center mb-1">
                                             <span class="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">${c.sender} ➔ ${c.receiver}</span>
                                             <span class="text-[9px] font-bold text-slate-400 font-mono">${c.date}</span>
+                                            ${c.sender === myName ? `<button onclick="window.deleteComment('${data.id}', ${i}, '${customerName}')" class="text-rose-400 hover:text-rose-600 ml-2 font-black">✕</button>` : ''}
                                         </div>
                                         <p class="text-xs font-bold text-slate-700 leading-relaxed">${c.text}</p>
                                     </div>
@@ -585,7 +593,21 @@ if (receiver === "全員") {
             } catch (e) { console.error("未読戻しエラー:", e); }
         };
 
-        init();
+        window.deleteComment = async (recordId, commentIdx, custName) => {
+    if (!confirm("自分のコメントを取り消しますか？")) return;
+    try {
+        const ref = doc(db, "activity_records", recordId);
+        const docSnap = await getDoc(ref);
+        if (docSnap.exists()) {
+            let comments = docSnap.data().comments || [];
+            comments.splice(commentIdx, 1);
+            await updateDoc(ref, { comments: comments });
+            sessionStorage.removeItem(`cp_history_cache_v2_${clean(custName)}`);
+            location.reload();
+        }
+    } catch (e) { alert("エラー: " + e.message); }
+};
+        init();       
     </script>
 </body>
 </html>
