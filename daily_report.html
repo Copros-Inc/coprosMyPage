@@ -242,18 +242,19 @@ async function init() {
     }
     
 function autoFocus() {
-    const autoOpenId = sessionStorage.getItem('cp_auto_open_id');
-    if (autoOpenId) {
-        // 修正：第2〜4引数を渡さず、単純に開閉だけさせる
-        const item = document.getElementById(autoOpenId);
-        if (item) {
-            const content = item.querySelector('.accordion-content');
-            if (content) content.style.display = 'block';
-            const chevron = item.querySelector('.fa-chevron-down');
-            if (chevron) chevron.style.transform = 'rotate(180deg)';
-            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        sessionStorage.removeItem('cp_auto_open_id');
+    const targetId = sessionStorage.getItem('cp_auto_open_recordId');
+    if (targetId) {
+        const items = document.querySelectorAll('.accordion-item');
+        items.forEach(item => {
+            if (item.innerHTML.includes(targetId)) {
+                const content = item.querySelector('.accordion-content');
+                if (content) content.style.display = 'block';
+                const chevron = item.querySelector('.fa-chevron-down');
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+        sessionStorage.removeItem('cp_auto_open_recordId');
         return;
     }
    
@@ -452,7 +453,7 @@ const [y, m] = visitDate.split(/[-/]/);
 const targetMonth = m.padStart(2, '0');
 sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${targetMonth}`); // 確実にキーを指定
 alert("送信しました");
-sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
+sessionStorage.setItem('cp_auto_open_recordId', recordId); 
 location.reload();
     } catch (e) { alert("送信エラー: " + e.message); }
 };
@@ -475,15 +476,9 @@ window.deleteComment = async (recordId, commentIdx) => {
             }
 
             alert("コメントを削除しました");
-            // 今開いているアコーディオンを維持するためのフラグ
-            const items = document.querySelectorAll('.accordion-item');
-            items.forEach((item, idx) => {
-                if (item.innerHTML.includes(recordId)) {
-                    sessionStorage.setItem('cp_auto_open_id', item.id);
-                }
-            });
-
-            location.reload();
+            // 🌟 IDを保存（autoFocusでこれを使って開く）
+            sessionStorage.setItem('cp_auto_open_recordId', recordId);
+            location.reload(); 
         }
     } catch (e) { alert("削除エラー: " + e.message); }
 };
