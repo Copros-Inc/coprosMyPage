@@ -85,7 +85,7 @@
                     </table>
   <div class="flex justify-center pb-10">
     <button id="moreBtn" onclick="window.executeSearch(undefined, true)" class="hidden px-20 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-2xl font-black hover:bg-blue-50 transition-all active:scale-95">
-        もっと見る（次の20件）
+        もっと見る（次の50件）
     </button>                 
                 </div>
             </div>
@@ -216,15 +216,20 @@ window.executeSearch = async (kana = 'all', append = false) => {
         // 🌟 4. 重複排除（同じIDのデータが混じらないようにする）
         const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
 
-        // 🌟 追加：表示直前に「最終訪問日」の近日順で並び替える（JSソート）
+        // 🌟 修正：条件によって並び順を変える
         uniqueCustomers.sort((a, b) => {
-            const dateA = (!a.lastVisitDate || a.lastVisitDate === "未訪問") ? "0000/00/00" : a.lastVisitDate;
-            const dateB = (!b.lastVisitDate || b.lastVisitDate === "未訪問") ? "0000/00/00" : b.lastVisitDate;
-            return dateB.localeCompare(dateA); 
+            if (currentKana === 'all' && !name && !addr) {
+                // 「全件」の時は最終訪問日の新しい順
+                const dateA = (!a.lastVisitDate || a.lastVisitDate === "未訪問") ? "0000/00/00" : a.lastVisitDate;
+                const dateB = (!b.lastVisitDate || b.lastVisitDate === "未訪問") ? "0000/00/00" : b.lastVisitDate;
+                return dateB.localeCompare(dateA);
+            } else {
+                // 「かな検索」「名前検索」などの時は五十音順
+                return (a.kana || "").localeCompare(b.kana || "");
+            }
         });
 
         renderTable(uniqueCustomers);
-
         const moreBtn = document.getElementById('moreBtn');
         // 🌟 修正：今回取得した件数が 50件「ぴったり」の時だけボタンを出す
         // 50件未満（例: 12件など）なら、もう次はないと判断して隠す
