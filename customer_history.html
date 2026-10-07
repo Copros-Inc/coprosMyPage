@@ -466,7 +466,7 @@ function autoOpenFirst() {
                                         <div class="flex justify-between items-center mb-1">
                                             <span class="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">${c.sender} ➔ ${c.receiver}</span>
                                             <span class="text-[9px] font-bold text-slate-400 font-mono">${c.date}</span>
-                                            ${c.sender === myName ? `<button onclick="window.deleteComment('${data.id}', ${i}, '${customerName}')" class="text-rose-400 hover:text-rose-600 ml-2 font-black">✕</button>` : ''}
+                                            ${c.sender === myName ? `<button onclick="window.deleteComment('${data.id}', idx, '${customerName}')" class="text-rose-400 hover:text-rose-600 ml-2 font-black">✕</button>` : ''}
                                         </div>
                                         <p class="text-xs font-bold text-slate-700 leading-relaxed">${c.text}</p>
                                     </div>
