@@ -369,9 +369,14 @@ window.deleteComment = async (recordId, commentIdx, noticeId) => {
         const docSnap = await getDoc(ref);
         if (docSnap.exists()) {
             let comments = docSnap.data().comments || [];
-            comments.splice(commentIdx, 1);
+            
+            // 🌟 修正：commentIdx を確実に数字に変換して削除
+            comments.splice(parseInt(commentIdx), 1); 
+            
             await updateDoc(ref, { comments: comments });
             sessionStorage.setItem('cp_last_opened_kairan', noticeId);
+            
+            alert("コメントを削除しました"); // 🌟 完了を確認
             location.reload();
         }
     } catch (e) { alert("取り消しエラー: " + e.message); }
