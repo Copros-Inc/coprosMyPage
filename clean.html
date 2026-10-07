@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>緊急データクリーニング</title></head>
+<body style="font-family:sans-serif; padding:40px; line-height:1.6;">
+    <h1 id="status">データベースを最適化中...</h1>
+    <p>※ブラウザを閉じずに待機してください。</p>
+    <div id="log" style="background:#0f172a; color:#34d399; padding:20px; height:400px; overflow:auto; font-family:monospace; border-radius:10px;"></div>
+
+    <script type="module">
+        import { db } from "./common.js";
+        import { collection, getDocs, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        async function emergencyClean() {
+            const logDiv = document.getElementById('log');
+            const statusH1 = document.getElementById('status');
+            
+            try {
+                logDiv.innerHTML += `<div>[INFO] 全顧客データを読み込み中...</div>`;
+                const snap = await getDocs(collection(db, "customers"));
+                
+                let deleteCount = 0;
+                let protectCount = 0;
+                let batch = writeBatch(db);
+
+                for (const d of snap.docs) {
+                    const data = d.data();
+                    
+                    // 🌟 安全装置：lat(座標)が存在するデータは絶対にスルー（保護）
+                    if (data.lat !== undefined && data.lat !== null) {
+                        protectCount++;
+                        continue; 
+                    }
+
+                    // 🌟 座標がないゴミデータだけをバッチに追加
+                    batch.delete(d.ref);
+                    deleteCount++;
+                    
+                    if (deleteCount % 100 === 0) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        logDiv.innerHTML += `<div style="color:#60a5fa;">[EXE] 100件削除実行... (現在:${deleteCount}件)</div>`;
+                    }
+                }
+
+                // 残りのバッチを実行
+                if (deleteCount % 100 !== 0) {
+                    await batch.commit();
+                }
+
+                statusH1.innerText = "最適化が完了しました";
+                logDiv.innerHTML += `<h2 style="color:#fbbf24;">[SUCCESS] クリーニング完了</h2>`;
+                logDiv.innerHTML += `<div>削除したゴミデータ: ${deleteCount} 件</div>`;
+                logDiv.innerHTML += `<div>保護した正常データ: ${protectCount} 件</div>`;
+                logDiv.innerHTML += `<div><b>明日からのRead負荷が大幅に軽減されます。</b></div>`;
+                
+                alert("掃除が完了しました！\n削除: " + deleteCount + " 件\n保護: " + protectCount + " 件");
+
+            } catch (e) {
+                logDiv.innerHTML += `<div style="color:#f87171;">[ERROR] ${e.message}</div>`;
+                alert("エラーが発生しました: " + e.message);
+            }
+        }
+        emergencyClean();
+    </script>
+</body>
+</html>
