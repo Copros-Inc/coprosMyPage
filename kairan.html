@@ -112,8 +112,13 @@
                     }
                 }
 
-                renderList(notices, recordDataMap);
-                const lastOpenedId = sessionStorage.getItem('cp_last_opened_kairan');
+ const validNotices = notices.filter(n => {
+    if (n.type.includes("アポ")) return true; 
+    return recordDataMap[n.id] !== undefined; // 実績が見つからない通知は無視！
+});
+renderList(validNotices, recordDataMap);
+                
+ const lastOpenedId = sessionStorage.getItem('cp_last_opened_kairan');
     if (lastOpenedId) {
         setTimeout(() => {
             const item = document.getElementById(`item-${lastOpenedId}`);
