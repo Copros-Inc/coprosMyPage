@@ -55,7 +55,9 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, getDisplayDept } from "./common.js";
-        import { collection, getDocs, updateDoc, doc, writeBatch, query, where, orderBy, limit, arrayUnion, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { collection, getDocs, getDoc, updateDoc, doc, writeBatch, query, where, orderBy, limit, arrayUnion, addDoc, serverTimestamp } 
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+       
         let myName = sessionStorage.getItem('userName');
        
         const clean = (s) => (s||"").toString().replace(/\s+/g, '');
@@ -214,12 +216,20 @@
                                 <i class="fa-solid fa-comment-dots text-sm"></i> 指導・確認コメント
                             </p>
                             <div class="space-y-3 mb-5">
-                                ${(r.comments || []).map(c => `
-                                    <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left">
-                                        <div class="flex justify-between items-center mb-1 text-[9px]">
-                                            <span class="font-black text-blue-600 px-2 py-0.5 bg-blue-50 rounded-full">${c.sender} ➔ ${c.receiver}</span>
-                                            <span class="text-slate-400 font-mono">${c.date}</span>
-                                            ${c.sender === myName ? `<button onclick="window.deleteComment('${recordId || n.id}', ${i}, '${n.id}')" class="text-rose-400 hover:text-rose-600 ml-2">✕</button>` : ''}
+                                ${(r.comments || []).map((c, idx) => `
+                                    <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left relative">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <div class="flex items-center gap-2">
+                                                <!-- 🌟 日付を左端に配置 -->
+                                                <span class="text-[9px] font-bold text-slate-400 font-mono">${c.date}</span>
+                                                <span class="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">${c.sender} ➔ ${c.receiver}</span>
+                                            </div>
+                                            <!-- 🌟 ✕ボタンを追加 -->
+                                            ${c.sender === myName ? `
+                                                <button onclick="window.deleteComment('${r.recordId || n.id}', ${idx}, '${n.id}')" 
+                                                    class="text-rose-400 hover:text-rose-600 font-black text-sm p-1">
+                                                    ✕
+                                                </button>` : ''}
                                         </div>
                                         <p class="text-xs font-bold text-slate-700 leading-relaxed">${c.text}</p>
                                     </div>
