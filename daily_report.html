@@ -388,8 +388,9 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
             const text = document.getElementById(`cmt-text-${index}`).value.trim();
             const receiver = document.getElementById(`cmt-to-display-${index}`).innerText;
             const sender = sessionStorage.getItem('userName') || "管理者";
+            const fDate = visitDate.replace(/-/g, '/');
 
-            if (!text || receiver === '選択してください') return alert("内容と宛先を入力してください");
+            if (!text || receiver === '選択してください') return alert("内容を入力してください");
 
             try {
                 const now = new Date();
@@ -400,17 +401,31 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
                     comments: arrayUnion({ sender, receiver, text, date: dateStr }) 
                 });
 
-                // 2. 通知を作成
-                await addDoc(collection(db, "notifications"), { 
-                    recipient: receiver, visitorName: sender, customerName, 
-                    visitDate: visitDate.replace(/-/g, '/'), 
-                    type: "コメント入電", isRead: false, createdAt: serverTimestamp() 
-                });
+                // 2. 🌟 重複防止：既存の通知があるか確認
+                const qNoti = query(collection(db, "notifications"), 
+                    where("recipient", "==", receiver),
+                    where("customerName", "==", customerName),
+                    where("visitDate", "==", fDate)
+                );
+                const nSnap = await getDocs(qNoti);
 
-                // 🌟 重要：キャッシュをクリア（これをしないと書き込めていないように見えます）
+                if (!nSnap.empty) {
+                    // すでに通知があれば、それを「未読」に戻して「時間」を更新するだけ
+                    await updateDoc(nSnap.docs[0].ref, { 
+                        isRead: false, 
+                        visitorName: sender, // 最後にコメントした人を表示
+                        createdAt: serverTimestamp() 
+                    });
+                } else {
+                    // 通知がなければ新規作成
+                    await addDoc(collection(db, "notifications"), { 
+                        recipient: receiver, visitorName: sender, customerName, 
+                        visitDate: fDate, type: "コメント入電", isRead: false, createdAt: serverTimestamp() 
+                    });
+                }
+
                 const [y, m] = visitDate.split(/[-/]/);
                 sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
-
                 alert("送信しました");
                 sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
                 location.reload();
