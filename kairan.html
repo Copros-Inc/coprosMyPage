@@ -326,23 +326,34 @@ window.postComment = async (recordId, customerName, index, noticeId) => {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        const collectionName = (recordId && recordId.length > 20) ? "activity_records" : "notifications"; 
+        // 🌟 修正：紐付け先の判定を確実に
+        const isActivity = recordId && recordId.length > 15;
+        const collectionName = isActivity ? "activity_records" : "notifications"; 
         const ref = doc(db, collectionName, recordId);
         
         await updateDoc(ref, { comments: arrayUnion({ sender, receiver, text, date: dateStr }) });
         
+        // 🌟 重要：通知には「元の活動の日付」を入れる（これで空白ページを防ぐ）
         const item = document.getElementById(`item-${noticeId}`);
-        const vDate = item.querySelector('.font-mono')?.innerText.trim() || "日付不明";
+        const originalDate = item ? item.querySelector('.font-mono').innerText.trim() : "";
 
         await addDoc(collection(db, "notifications"), {
-            recipient: receiver, visitorName: sender, customerName: customerName,
-            visitDate: vDate, type: "コメント入電", isRead: false, createdAt: serverTimestamp()
+            recipient: receiver,
+            visitorName: sender,
+            customerName: customerName,
+            visitDate: originalDate, // 「コメント」ではなく実際の日付を入れる
+            type: "コメント入電",
+            isRead: false,
+            createdAt: serverTimestamp()
         });
         
         alert("コメントを送信しました");
         sessionStorage.setItem('cp_last_opened_kairan', noticeId);
         location.reload(); 
-    } catch (e) { alert("送信エラー: " + e.message); }
+    } catch (e) { 
+        console.error(e);
+        alert("送信エラー: 宛先が「関係者全員」の場合は通知のみ送信されます。"); 
+    }
 };
 
 window.deleteComment = async (recordId, commentIdx, noticeId) => {
