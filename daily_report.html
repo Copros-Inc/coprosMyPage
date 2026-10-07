@@ -241,66 +241,6 @@ async function init() {
         } catch (e) { console.error("Init Error:", e); }
     }
     
-window.postComment = async (recordId, customerName, index) => {
-    const text = document.getElementById(`cmt-text-${index}`).value.trim();
-    const receiver = document.getElementById(`cmt-to-${index}`).value;
-    const sender = sessionStorage.getItem('userName') || "管理者";
-    
-    // 🌟 追加：カレンダーとの連動に必要な日付を取得
-    const rawDate = sessionStorage.getItem('cp_daily_date');
-    const formattedDate = standardizeDate(rawDate).replace(/-/g, '/');
-
-    if (!text) return alert("コメントを入力してください");
-
-    try {
-        const ref = doc(db, "activity_records", recordId);
-        const now = new Date();
-        const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-        
-        await updateDoc(ref, { comments: arrayUnion({ sender, receiver, text, date: dateStr }) });
-        const recordData = dailyData[index];
-        if (receiver === "全員") {
-            const circularList = recordData.circularNames || [];
-            const visitorName = recordData.visitorName;
-            let targets = [...new Set([...circularList, visitorName])];
-            targets = targets.filter(name => name !== sender);
-
-            await Promise.all(targets.map(name => 
-                addDoc(collection(db, "notifications"), {
-                    recipient: name, // 🌟 ループ内の name を指定！
-                    visitorName: recordData.visitorName,
-                    customerName: customerName,
-                    visitDate: formattedDate,
-                    type: "コメント入電",
-                    isRead: false,
-                    createdAt: serverTimestamp()
-                })
-            ));
-        } else {
-            if (receiver !== sender) {
-                await addDoc(collection(db, "notifications"), {
-                    recipient: receiver,
-                    visitorName: recordData.visitorName, // 送信者ではなく「誰の訪問か」を入れる
-                    customerName: customerName,
-                    visitDate: formattedDate, // 🌟 これがバッジ点灯に必須
-                    type: "コメント入電",
-                    isRead: false,
-                    createdAt: serverTimestamp()
-                });
-            }
-        }
-        
-        alert("コメントを送信しました");
-        // 🌟 親切設計：今送信したアコーディオンのIDを一時保存
-        sessionStorage.setItem('cp_auto_open_id', `acc-${index}`);
-
-        const rawDate = sessionStorage.getItem('cp_daily_date');
-        const [y, m] = rawDate.split(/[-/]/);
-        sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
-        location.reload(); // リロード
-    } catch (e) { alert("送信エラー: " + e.message); }
-};
-
 function autoFocus() {
     // 🌟 追加：コメント送信直後の自動展開
     const autoOpenId = sessionStorage.getItem('cp_auto_open_id');
@@ -444,40 +384,46 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
             window.closeModal();
         };
 
+        // 🌟 修正版：これに丸ごと差し替えてください
         window.postComment = async (recordId, customerName, index, visitDate) => {
             const text = document.getElementById(`cmt-text-${index}`).value.trim();
             const receiver = document.getElementById(`cmt-to-display-${index}`).innerText;
-            if (!text) return alert("コメントを入力してください");
+            const sender = sessionStorage.getItem('userName') || "管理者";
+
+            if (!text || receiver === '選択してください') return alert("コメントと宛先を入力してください");
+
             try {
                 const now = new Date();
                 const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-                await updateDoc(doc(db, "activity_records", recordId), { comments: arrayUnion({ sender: sessionStorage.getItem('userName'), receiver, text, date: dateStr }) });
-                await addDoc(collection(db, "notifications"), { recipient: receiver, visitorName: sessionStorage.getItem('userName'), customerName, visitDate: visitDate.replace(/-/g, '/'), type: "コメント入電", isRead: false, createdAt: serverTimestamp() });
-                alert("送信しました"); sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); location.reload();
+                await updateDoc(doc(db, "activity_records", recordId), { 
+                    comments: arrayUnion({ sender, receiver, text, date: dateStr }) 
+                });
+                await addDoc(collection(db, "notifications"), { 
+                    recipient: receiver, visitorName: sender, customerName, 
+                    visitDate: visitDate.replace(/-/g, '/'), 
+                    type: "コメント入電", isRead: false, createdAt: serverTimestamp() 
+                });
+                alert("送信しました");
+                sessionStorage.setItem('cp_auto_open_id', `acc-${index}`); 
+                location.reload();
             } catch (e) { alert("送信エラー: " + e.message); }
         };
 
-window.deleteComment = async (recordId, commentIdx) => {
-    if (!confirm("自分のコメントを取り消しますか？")) return;
-    try {
-        // 日報画面は常に実績（activity_records）を消しに行きます
-        const ref = doc(db, "activity_records", recordId);
-        const docSnap = await getDoc(ref);
-        if (docSnap.exists()) {
-            let comments = docSnap.data().comments || [];
-            
-            // 🌟 修正：確実に数字として扱い、1つ削除
-            comments.splice(parseInt(commentIdx), 1); 
-            
-            await updateDoc(ref, { comments: comments });
-            alert("コメントを削除しました");
-            location.reload();
-        }
-    } catch (e) { 
-        console.error("削除エラー:", e);
-        alert("削除に失敗しました: " + e.message); 
-    }
-};
+        window.deleteComment = async (recordId, commentIdx) => {
+            if (!confirm("自分のコメントを取り消しますか？")) return;
+            try {
+                const ref = doc(db, "activity_records", recordId);
+                const docSnap = await getDoc(ref);
+                if (docSnap.exists()) {
+                    let comments = docSnap.data().comments || [];
+                    comments.splice(parseInt(commentIdx), 1);
+                    await updateDoc(ref, { comments: comments });
+                    alert("コメントを削除しました");
+                    location.reload();
+                }
+            } catch (e) { alert("削除エラー: " + e.message); }
+        };
+
         init();
     </script>
       <!-- スタッフモーダル（見た目の部分） -->
