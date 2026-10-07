@@ -79,6 +79,13 @@
 
             try {
                 await loadStaffs();
+        // 🌟 ご指定の部署リストをセット
+        const depts = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所", "その他の部署"];
+        const deptSelect = document.getElementById('staffDeptFilter');
+        if (deptSelect) {
+            deptSelect.innerHTML = '<option value="ALL">全部署</option>' + 
+                depts.map(d => `<option value="${d}">${d}</option>`).join('');
+        }                
                 // 1. 通知を最新100件取得（読み取り1回）
                 const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(100));
                 const snap = await getDocs(q);
@@ -364,22 +371,32 @@ window.postComment = async (recordId, customerName, index, noticeId, visitDate) 
 window.deleteComment = async (recordId, commentIdx, noticeId) => {
     if (!confirm("自分のコメントを取り消しますか？")) return;
     try {
-        const collectionName = (recordId && recordId.length > 20) ? "activity_records" : "notifications"; 
+        // 🌟 修正：実績か通知かを「IDが一致するかどうか」で確実に判定
+        // 第一引数(recordId) と 第三引数(noticeId) が同じなら「通知」、違えば「実績」
+        const collectionName = (recordId === noticeId) ? "notifications" : "activity_records"; 
+        
         const ref = doc(db, collectionName, recordId);
         const docSnap = await getDoc(ref);
+        
         if (docSnap.exists()) {
             let comments = docSnap.data().comments || [];
             
-            // 🌟 修正：commentIdx を確実に数字に変換して削除
+            // 指定した番号のコメントを削除
             comments.splice(parseInt(commentIdx), 1); 
             
             await updateDoc(ref, { comments: comments });
-            sessionStorage.setItem('cp_last_opened_kairan', noticeId);
             
-            alert("コメントを削除しました"); // 🌟 完了を確認
+            // キャッシュを保持してリロード
+            sessionStorage.setItem('cp_last_opened_kairan', noticeId);
+            alert("コメントを削除しました");
             location.reload();
+        } else {
+            alert("データが見つかりませんでした。既に削除されている可能性があります。");
         }
-    } catch (e) { alert("取り消しエラー: " + e.message); }
+    } catch (e) { 
+        console.error("削除エラー:", e);
+        alert("削除に失敗しました: " + e.message); 
+    }
 };
 
 window.toggleReadStatus = async (id, currentStatus) => {
@@ -418,9 +435,27 @@ window.toggleReadStatus = async (id, currentStatus) => {
         window.renderStaffList = () => {
             const kw = document.getElementById('staffKeyword').value.toLowerCase();
             const dp = document.getElementById('staffDeptFilter').value;
-            const filtered = allStaffs.filter(s => (!kw || s.name.includes(kw)) && (dp === 'ALL' || s.dept === dp));
+            
+            // 🌟 判定用の部署リスト
+            const mainDepts = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所"];
+
+            const filtered = allStaffs.filter(s => {
+                const matchKw = !kw || s.name.includes(kw);
+                let matchDept = false;
+
+                if (dp === 'ALL') {
+                    matchDept = true;
+                } else if (dp === 'その他の部署') {
+                    // 🌟 リスト（mainDepts）に含まれていない部署の人を全員出す
+                    matchDept = !mainDepts.includes(s.dept);
+                } else {
+                    matchDept = s.dept === dp;
+                }
+                return matchKw && matchDept;
+            });
+
             document.getElementById('staffList').innerHTML = filtered.map(s =>
-                `<div class="p-3 border-b flex justify-between cursor-pointer ${modalSelected.includes(s.name) ? 'bg-blue-50 text-blue-700 font-bold' : ''}" onclick="window.toggleStaffSelection('${s.name}')">
+                `<div class="staff-item p-3 border-b flex justify-between cursor-pointer ${modalSelected.includes(s.name) ? 'bg-blue-50 text-blue-700 font-bold' : ''}" onclick="window.toggleStaffSelection('${s.name}')">
                     <span>${s.name}</span><span class="text-[9px] opacity-40">${s.dept || ''}</span>
                 </div>`).join('');
         };
