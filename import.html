@@ -172,36 +172,33 @@ if (currentMode === 'activity_records' && staffMap.size === 0) {
         let batch = writeBatch(db);
         let count = 0;
 
-        for (let i = 0; i < rows.length; i++) {
-            const col = rows[i];
-            try {
-                // currentMode (customers 等) に応じてリファレンスを作成
-                const ref = doc(collection(db, currentMode));
+for (let i = 0; i < rows.length; i++) {
+    const col = rows[i];
+    try {
+        if (currentMode === 'customers') {
+            const rawName = col[0]?.trim() || "";
+            const mKey = createMatchKey(rawName); 
+            if (!mKey) continue; 
 
-if (currentMode === 'customers') {
-    const rawName = col[0]?.trim() || "";
-    const mKey = createMatchKey(rawName); // 名寄せ用の合言葉
-    if (!mKey) return; // 名前がなければスキップ
+            // 🌟 修正：ランダムIDではなく、名前から作った mKey をIDとして使用する
+            // これにより、同じ名前のデータは「上書き」になり、重複しません
+            const customerRef = doc(db, "customers", mKey); 
 
-    // 🌟省エネの極意：ドキュメントIDに mKey を使うことで、
-    // 事前の「検索（読み取り）」を不要にし、いきなり保存（書き込み）します。
-    const customerRef = doc(db, "customers", mKey); 
-
-    batch.set(customerRef, {
-       name: rawName,
-       matchKey: mKey,
-       kana: col[1]?.trim() || "",
-       rank: col[2]?.trim() || "-",
-       type: col[3]?.trim() || "-",
-       address: col[4]?.trim() || "",
-       tel: col[5]?.trim() || "",
-       visitCount: parseInt(col[6]) || 0,
-       lastVisitDate: cleanDate(col[7]),
-       lat: col[8] ? parseFloat(col[8]) : null, // 🌟追加：I列(緯度)
-       lng: col[9] ? parseFloat(col[9]) : null, // 🌟追加：J列(経度)
-       updatedAt: serverTimestamp()
-    }, { merge: true }); // 🌟既存のデータがある場合は「合体」させる
-}
+            batch.set(customerRef, {
+               name: rawName,
+               matchKey: mKey,
+               kana: col[1]?.trim() || "",
+               rank: col[2]?.trim() || "-",
+               type: col[3]?.trim() || "-",
+               address: col[4]?.trim() || "",
+               tel: col[5]?.trim() || "",
+               visitCount: parseInt(col[6]) || 0,
+               lastVisitDate: cleanDate(col[7]),
+               lat: col[8] ? parseFloat(col[8]) : null,
+               lng: col[9] ? parseFloat(col[9]) : null,
+               updatedAt: serverTimestamp()
+            }, { merge: true }); 
+        }
                 else if (currentMode === 'activity_records') {
                     const rawCustName = col[0]?.trim() || "";
                     const startFull   = (col[4]||"").trim().split(' '); // E列
