@@ -103,6 +103,7 @@
         // =========================================================
         let allCustomers = [];
         let lastVisible = null; // 最後に読み込んだデータの位置を保持
+        let currentKana = 'all';
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
 
         // =========================================================
@@ -144,20 +145,22 @@
                 }
             } catch (e) { console.error("Master Load Error:", e); }
 
-            // 起動スイッチ：最新20件を表示
+            // 起動スイッチ：最新50件を表示
             window.executeSearch('all');
         }
-
+        
 window.executeSearch = async (kana = 'all', append = false) => {
+    if (append) {
+        kana = currentKana;
+    } else {
+        currentKana = kana;
+        lastVisible = null;
+        allCustomers = [];
+    }
     const name = document.getElementById('detailName').value.trim();
     const addr = document.getElementById('detailAddress').value.trim();
     const rank = document.getElementById('detailRank').value;
     const type = document.getElementById('detailType').value;
-
-    if (!append) {
-        lastVisible = null;
-        allCustomers = [];
-    }
 
     const tbody = document.getElementById('customerTable');
     if (!append) tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-400 animate-pulse">同期中...</td></tr>`;
