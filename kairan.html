@@ -126,12 +126,10 @@
                 if (!uniqueMap.has(uKey)) uniqueMap.set(uKey, n);
             });
 
-            // 実績がある、またはアポ・コメント系のみを抽出して表示
-            const finalNotices = Array.from(uniqueMap.values()).filter(n => {
-                if (n.type.includes("アポ") || n.type.includes("コメント")) return true;
-                return recordDataMap[n.id] !== undefined;
-            });
-
+            // 🌟 修正：紐付けに失敗していても、通知が存在するなら必ず表示させる（カードが出ない問題を解決）
+            const finalNotices = Array.from(uniqueMap.values());
+            
+            // 全ての通知を表示対象にする（実績がない場合は空のオブジェクトを表示に使う）
             renderList(finalNotices, recordDataMap);
                 
  const lastOpenedId = sessionStorage.getItem('cp_last_opened_kairan');
