@@ -79,18 +79,15 @@
                     </div>
                 </div>
 
-                <!-- 🌟 修正：月送りナビゲーター -->
-                <div class="flex items-center justify-between mb-6 px-2">
-                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm font-black">
-                        <button onclick="window.changeMonth(-1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
-                        <div id="currentMonthDisplay" class="text-base font-black text-slate-800 min-w-[120px] text-center tracking-tighter">2024年 10月</div>
-                        <button onclick="window.changeMonth(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
-                        <div class="w-px h-6 bg-slate-100 mx-1"></div>
-                        <button onclick="window.initMonth()" class="px-4 py-2 bg-slate-50 text-slate-500 rounded-xl text-[10px] uppercase hover:bg-slate-100 transition-all">今月</button>
+                <!-- 🌟 修正：月送りナビゲーター（中央配置・年表示版） -->
+                <div class="flex flex-col items-center mb-10 px-2 gap-4">
+                    <div class="flex items-center gap-6 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-black text-[#004098]">
+                        <button onclick="window.changeMonth(-1)" class="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-300 transition-all"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                        <div id="currentMonthDisplay" class="text-xl font-black text-slate-800 min-w-[180px] text-center tracking-tighter italic">2026年 10月</div>
+                        <button onclick="window.changeMonth(1)" class="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-300 transition-all"><i class="fa-solid fa-chevron-right text-lg"></i></button>
                     </div>
-                    <div class="text-slate-400 font-bold text-sm whitespace-nowrap bg-white px-5 py-2 rounded-full border border-slate-100 shadow-sm">
-                        <span id="totalDisplay" class="text-slate-800 text-xl tracking-tighter">0</span>
-                        <span class="text-[10px] uppercase font-black">Records Found</span>
+                    <div class="text-slate-400 font-bold text-[10px] uppercase tracking-widest bg-white/50 px-4 py-1.5 rounded-full border border-slate-100 shadow-sm">
+                        <span id="totalDisplay" class="text-slate-800 font-black">0</span> Records Found
                     </div>
                 </div>
 
@@ -151,15 +148,16 @@
         window.renderMonthPicker = () => {
             const y = currentDisplayDate.getFullYear();
             const m = currentDisplayDate.getMonth() + 1;
+            // 🌟 表示を「2026年 10月」形式に
             document.getElementById('currentMonthDisplay').innerText = `${y}年 ${m}月`;
             
-            // 🌟 予知：日付入力欄を自動セット（これでFirestoreの月間絞り込みを強制する）
             const lastDay = new Date(y, m, 0).getDate();
             document.getElementById('startDate').value = `${y}-${String(m).padStart(2,'0')}-01`;
             document.getElementById('endDate').value = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
             
-            window.executeSearch(); // 検索実行
+            window.executeSearch(); 
         };
+        
         function loadFromCache(key) {
             try {
                 const raw = sessionStorage.getItem(key);
@@ -179,25 +177,37 @@
             const tbody = document.getElementById('recordTable');
             const moreBtn = document.getElementById('moreBtn');
 
+            // 🌟 予知対策：月間指定を確実に取得
+            const startD = document.getElementById('startDate').value; 
+            const endD   = document.getElementById('endDate').value;
+            if (!startD || !endD) return;
+
+            const cacheKey = `cp_records_cache_${startD}_${endD}`;
+
             if (!append) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">同期中...</td></tr>`;
+                // 🌟 最強の省エネ：キャッシュがあれば即表示（通信 0）
+                const cached = loadFromCache(cacheKey);
+                if (cached) {
+                    allRecords = cached;
+                    window.updateView();
+                    return;
+                }
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを読み込み中...</td></tr>`;
                 lastVisible = null;
                 allRecords = [];
             }
 
-            const custK  = document.getElementById('filterCustomer').value.trim();
-            const visiK  = document.getElementById('filterVisitor').value.trim();
-            const startD = document.getElementById('startDate').value;
-            const endD   = document.getElementById('endDate').value;
-            const dept   = document.getElementById('deptFilter').value;
-            
-            // 詳細検索が入力されているか判定
-            isSearching = !!(custK || visiK || startD || endD || dept !== 'ALL');
-
             try {
                 const ref = collection(db, "activity_records");
-                // 🌟 ここを「日付順・50件」に固定。これで通信は1回（Read 50）で終わります。
-                let constraints = [orderBy("visitDate", "desc"), limit(50)];
+                // 🌟 修正：その月の範囲だけをピンポイントで取得（無駄読みをカット）
+                const fStart = startD.replace(/-/g, '/');
+                const fEnd   = endD.replace(/-/g, '/');
+                let constraints = [
+                    where("visitDate", ">=", fStart),
+                    where("visitDate", "<=", fEnd),
+                    orderBy("visitDate", "desc"),
+                    limit(50)
+                ];
 
                 if (append && lastVisible) {
                     constraints.push(startAfter(lastVisible));
@@ -205,48 +215,32 @@
 
                 const q = query(ref, ...constraints);
                 const snap = await getDocs(q);
-                
+
                 if (snap.empty && !append) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-black uppercase tracking-widest">該当する実績はありません</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold">この月の実績はありません</td></tr>`;
                     if (moreBtn) moreBtn.classList.add('hidden');
                     return;
                 }
 
                 lastVisible = snap.docs[snap.docs.length - 1];
                 let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-                // メモリ内補助フィルタ
-                if (visiK) newDocs = newDocs.filter(r => (r.visitorName || "").includes(visiK));
-                if (startD) newDocs = newDocs.filter(r => normalizeDate(r.visitDate) >= startD);
-                if (endD)   newDocs = newDocs.filter(r => normalizeDate(r.visitDate) <= endD);
-
                 allRecords = append ? [...allRecords, ...newDocs] : newDocs;
 
-                window.updateView();
+                // 🌟 取得したデータをキャッシュに保存
+                saveToCache(cacheKey, allRecords);
 
-                // 🌟 ボタン表示の最適化（50件単位）
+                window.updateView();
                 if (moreBtn) {
-                    if (snap.docs.length === 50) {
-                        moreBtn.classList.remove('hidden');
-                        moreBtn.innerText = "もっと見る（次の50件）";
-                    } else {
-                        moreBtn.classList.add('hidden');
-                    }
+                    if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
+                    else moreBtn.classList.add('hidden');
                 }
             } catch (e) {
                 console.error(e);
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
+                // 🌟 予知：インデックス未作成の場合のみエラーが出るので案内
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">【設定が必要】F12のコンソールから青いURLをクリックしてインデックスを作成してください</td></tr>`;
             }
         };
         
-        // 既存：あかさたなフィルター（そのまま）
-        window.setKanaFilter = (btn, kana) => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'text-white'));
-            btn.classList.add('active', 'text-white');
-            currentKana = kana;
-            window.updateView();
-        };
-
         window.updateView = () => {
             const custK  = document.getElementById('filterCustomer').value.trim();
             const visiK  = document.getElementById('filterVisitor').value.trim();
