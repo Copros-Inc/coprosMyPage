@@ -79,13 +79,16 @@
                     </div>
                 </div>
 
-                <!-- あかさたなフィルター（既存まま） -->
-                <div class="flex items-center gap-6 mb-6 px-2">
-                    <div id="syllabaryFilter" class="flex p-1.5 bg-white rounded-xl border border-slate-200 shadow-sm font-black items-center overflow-x-auto custom-scrollbar gap-1">
-                        <button class="filter-btn active px-4 py-1.5 text-xs" onclick="window.setKanaFilter(this, 'all')">全件</button>
-                        <script>['あ','か','さ','た','な','は','ま','や','ら','わ','他'].forEach(k => document.write(`<button class="filter-btn px-3 py-1.5 text-xs hover:text-orange-500" onclick="window.setKanaFilter(this, '${k}')">${k}</button>`));</script>
+                <!-- 🌟 修正：月送りナビゲーター -->
+                <div class="flex items-center justify-between mb-6 px-2">
+                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm font-black">
+                        <button onclick="window.changeMonth(-1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div id="currentMonthDisplay" class="text-base font-black text-slate-800 min-w-[120px] text-center tracking-tighter">2024年 10月</div>
+                        <button onclick="window.changeMonth(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 text-slate-400 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+                        <div class="w-px h-6 bg-slate-100 mx-1"></div>
+                        <button onclick="window.initMonth()" class="px-4 py-2 bg-slate-50 text-slate-500 rounded-xl text-[10px] uppercase hover:bg-slate-100 transition-all">今月</button>
                     </div>
-                    <div class="text-slate-400 font-bold text-sm whitespace-nowrap ml-auto bg-white px-5 py-2 rounded-full border border-slate-100 shadow-sm">
+                    <div class="text-slate-400 font-bold text-sm whitespace-nowrap bg-white px-5 py-2 rounded-full border border-slate-100 shadow-sm">
                         <span id="totalDisplay" class="text-slate-800 text-xl tracking-tighter">0</span>
                         <span class="text-[10px] uppercase font-black">Records Found</span>
                     </div>
@@ -122,40 +125,33 @@
         import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy, startAfter }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // =========================================================
-        // 定数・状態管理
-        // =========================================================
-        let allRecords  = [];
-        let currentKana = 'all';
         let lastVisible = null; 
-        // 🌟 追加：現在の検索モードを保持
         let isSearching = false; 
+        let currentDisplayDate = new Date(); // 🌟 追加：現在表示中の年月
 
-        const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
+        // 🌟 追加：月送りナビゲーターの制御
+        window.changeMonth = (diff) => {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() + diff);
+            window.renderMonthPicker();
+        };
 
-        function normalizeDate(str) {
-            if (!str) return "0000-00-00";
-            const d = str.toString().replace(/\//g, '-').split('-');
-            if (d.length < 3) return str;
-            return `${d[0]}-${d[1].padStart(2, '0')}-${d[2].padStart(2, '0')}`;
-        }
+        window.initMonth = () => {
+            currentDisplayDate = new Date();
+            window.renderMonthPicker();
+        };
 
-        // =========================================================
-        // ▼▼▼ 修正⑤：起動時のカレンダーキャッシュ削除を廃止 ▼▼▼
-        // 元コードは毎回カレンダーキャッシュを消していたため
-        // カレンダー画面のパフォーマンスを損ねていた。
-        // 実績登録完了時（history.html）にのみ削除するのが正しい設計。
-        // =========================================================
-
-        // =========================================================
-        // ▼▼▼ 追加②：キャッシュ管理 ▼▼▼
-        // =========================================================
-        const today = new Date().toDateString();
-
-        function getCacheKey(dept, custK, visiK, startD, endD) {
-            return `cp_records_${today}_${clean(dept)}_${clean(custK)}_${clean(visiK)}_${startD}_${endD}`;
-        }
-
+        window.renderMonthPicker = () => {
+            const y = currentDisplayDate.getFullYear();
+            const m = currentDisplayDate.getMonth() + 1;
+            document.getElementById('currentMonthDisplay').innerText = `${y}年 ${m}月`;
+            
+            // 🌟 予知：日付入力欄を自動セット（これでFirestoreの月間絞り込みを強制する）
+            const lastDay = new Date(y, m, 0).getDate();
+            document.getElementById('startDate').value = `${y}-${String(m).padStart(2,'0')}-01`;
+            document.getElementById('endDate').value = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+            
+            window.executeSearch(); // 検索実行
+        };
         function loadFromCache(key) {
             try {
                 const raw = sessionStorage.getItem(key);
@@ -244,69 +240,40 @@
         };
 
         window.updateView = () => {
-            // 🌟 1. 現在の検索フォームの値を最新状態で取得
             const custK  = document.getElementById('filterCustomer').value.trim();
             const visiK  = document.getElementById('filterVisitor').value.trim();
             const startD = document.getElementById('startDate').value;
             const endD   = document.getElementById('endDate').value;
             const dept   = document.getElementById('deptFilter').value;
 
-            // 🌟 修正：条件が空（未入力）の時は、その条件を無視するように改善
-            let filtered = allRecords.filter(r => {
-                const rDate = normalizeDate(r.visitDate); // 比較用に 2024-01-01 形式に変換
+            // 🌟 予知対策：検索中かどうかの判定を最新状態で行う
+            const isSearchingNow = !!(custK || visiK || startD || endD || dept !== 'ALL');
 
+            let filtered = allRecords.filter(r => {
+                const rDate = normalizeDate(r.visitDate); // ここで共通関数を使用
                 const mCust = !custK || (r.customerName || "").includes(custK);
                 const mVisi = !visiK || (r.visitorName || "").includes(visiK);
-                
                 const mDept = (dept === 'ALL') ? true : 
                               (dept === 'OTHER') ? !TARGET_DEPTS.includes(r.visitorDept) : 
                               r.visitorDept === dept;
-                
-                // 🌟 日付判定を確実に（空文字なら比較しない）
                 const mStart = (startD === "" || rDate >= startD);
                 const mEnd   = (endD === ""   || rDate <= endD);
-                
                 return mCust && mVisi && mDept && mStart && mEnd;
             });
 
-            // 🌟 3. かなフィルターの判定（正規表現）
-            const rangeMap = {
-                'あ': /^[あ-おア-オ安阿伊藤宇江遠]/, 'か': /^[か-こカ-コ加河亀菊久工国]/,
-                'さ': /^[さ-そサ-ソ佐佐藤斉酒榊]/, 'た': /^[た-とタ-トだ-ど田高武竹立]/,
-                'な': /^[な-のナ-ノ内中永長名]/, 'は': /^[は-ほハ-ホ波橋羽浜服]/,
-                'ま': /^[ま-もマ-モ前松真丸]/, 'や': /^[や-よヤ-ヨ山谷八]/,
-                'ら': /^[ら-ろラ-ロ]/, 'わ': /^[わ-んワ-ン]/
-            };
-
-                       // 🌟 予知対策：実績データに kana がないため「他」を判定するロジックを補強
-            if (currentKana !== 'all') {
-                if (currentKana === '他') {
-                    // 全てのあかさたな正規表現に当てはまらないものを「他」とする
-                    filtered = filtered.filter(r => {
-                        const name = r.customerName || "";
-                        return !Object.values(rangeMap).some(re => re.test(name));
-                    });
-                } else {
-                    filtered = filtered.filter(r => 
-                        rangeMap[currentKana] && rangeMap[currentKana].test(r.customerName || "")
-                    );
-                }
-            }
-
-            // 🌟 予知対策：全件表示の際、追加読み込み後も確実に日付順を維持する
+            // 🌟 並び替え：常に「訪問日時の新しい順（近日順）」
             filtered.sort((a, b) => {
-                if (currentKana === 'all' && !isSearching) {
-                    // visitDate(2024/10/08) をそのまま比較して降順（近日順）
-                    return (b.visitDate || "").localeCompare(a.visitDate || "");
-                } else {
-                    // 検索時は五十音順
-                    return (a.customerName || "").localeCompare(b.customerName || "");
+                const dateA = a.visitDate || "";
+                const dateB = b.visitDate || "";
+                if (dateA === dateB) {
+                    return (b.startTime || "00:00").localeCompare(a.startTime || "00:00");
                 }
+                return dateB.localeCompare(dateA); 
             });
 
             renderTable(filtered);
         };
-
+        
         function renderTable(dataList) {
             const tbody = document.getElementById('recordTable');
             if (dataList.length === 0) {
@@ -402,10 +369,9 @@ window.editSelectedRecord = () => {
             document.getElementById('filterVisitor').value = "";
             document.getElementById('startDate').value     = "";
             document.getElementById('endDate').value       = "";
-            window.executeSearch();
         };
 
-        window.executeSearch();
+        window.initMonth();
     </script>
 </body>
 </html>
