@@ -170,12 +170,7 @@
                 // 容量超過時は無視（通信にフォールバック）
             }
         }
-        // =========================================================
-        // ▲▲▲ キャッシュ管理ここまで ▲▲▲
-        // =========================================================
-
-        let lastVisible = null; // 🌟 続きから読み込むための位置保持
-
+       
         window.executeSearch = async (append = false) => {
             const tbody = document.getElementById('recordTable');
             const moreBtn = document.getElementById('moreBtn');
