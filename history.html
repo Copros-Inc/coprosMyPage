@@ -354,59 +354,66 @@ const createMatchKey = (s) => {
                 
                 setupCustomerSearch();
 
-                // 🌟ここからが修正のキモです
-                const urlParams = new URLSearchParams(window.location.search);
-                const editId = urlParams.get('editId');
+const urlParams = new URLSearchParams(window.location.search);
+const editId = urlParams.get('editId');
+const copyId = urlParams.get('copyId');
+const targetId = editId || copyId; // どちらかがあれば取得
 
-                if (editId) {
-                    const docSnap = await getDoc(doc(db, "activity_records", editId));
-                    if (docSnap.exists()) {
-                        const d = docSnap.data();
-                        document.querySelector('h1').innerText = "実績の修正";
-                        document.getElementById('submitBtnTop').innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存';
-                        document.getElementById('deleteBtn').classList.remove('hidden');
-                        
-                        document.getElementById('customerSearch').value = d.customerName || '';
-                        document.getElementById('autoRank').value = d.customerRank || '';
-                        document.getElementById('autoType').value = d.customerAttr || '';
-                        document.getElementById('activityType').value = d.activityType || '';
-                        document.getElementById('visitDate').value = d.visitDate ? d.visitDate.replace(/\//g, '-') : '';
-                        document.getElementById('startTime').value = d.startTime || '';
-                        document.getElementById('endTime').value = d.endTime || '';
-                        document.getElementById('visitorName').value = d.visitorName || '';
-                        document.getElementById('companionDisplay').value = d.companion || '';
-                        document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
-                        document.getElementById('nextVisitDate').value = d.nextVisitDate ? d.nextVisitDate.replace(/\//g, '-') : '';
+if (targetId) {
+    const docSnap = await getDoc(doc(db, "activity_records", targetId));
+    if (docSnap.exists()) {
+        const d = docSnap.data();
+        if (editId) {
+            document.querySelector('h1').innerText = "実績の修正";
+            document.getElementById('submitBtnTop').innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存';
+            document.getElementById('deleteBtn').classList.remove('hidden');
+        } else {
+            document.querySelector('h1').innerText = "実績の複写（新規登録）";
+            document.getElementById('submitBtnTop').innerHTML = '<i class="fa-solid fa-paper-plane"></i> 複写して登録';
+        }
+        
+        document.getElementById('customerSearch').value = d.customerName || '';
+        document.getElementById('autoRank').value = d.customerRank || '';
+        document.getElementById('autoType').value = d.customerAttr || '';
+        document.getElementById('activityType').value = d.activityType || '';
+        
+        // 🌟 複写の場合は「今日」の日付と現在時刻を優先、修正の場合は元の値をセット
+        if (editId) {
+            document.getElementById('visitDate').value = d.visitDate ? d.visitDate.replace(/\//g, '-') : '';
+            document.getElementById('startTime').value = d.startTime || '';
+            document.getElementById('endTime').value = d.endTime || '';
+        } else {
+            document.getElementById('visitDate').valueAsDate = new Date();
+            // 時刻は init の冒頭で設定された現在時刻がそのまま使われます
+        }
+        
+        document.getElementById('visitorName').value = d.visitorName || '';
+        document.getElementById('companionDisplay').value = d.companion || '';
+        document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
+        document.getElementById('nextVisitDate').value = d.nextVisitDate ? d.nextVisitDate.replace(/\//g, '-') : '';
 
-                        // 🌟 担当者選択肢を先に生成（これがないと値をセットできない）
-                        window.syncAllStaffSelects(d.customerStaffName || '');
+        window.syncAllStaffSelects(d.customerStaffName || '');
 
-                        // 報告欄のセット
-                        const container = document.getElementById('reportContainer');
-                        container.innerHTML = '';
-                        window.addReportBlock(); // ブロック生成
-                        
-                        // 🌟 生成直後のブロックを特定して値を流し込む
-                        const blocks = container.querySelectorAll('.report-block');
-                        const b = blocks[blocks.length - 1];
-                        if (b) {
-                            // select要素は option が存在しないとセットされないため、明示的に追加・セット
-                            const staffSelect = b.querySelector('.customer-staff-dropdown');
-                            if (staffSelect) staffSelect.value = d.customerStaffName || '';
-
-                            b.querySelector('.qual-data-1').value = d.qualData1 || '';
-                            b.querySelector('.qual-data-2').value = d.qualData2 || '';
-                            b.querySelector('.qual-data-3').value = d.qualData3 || '';
-                            b.querySelector('.qual-free').value   = d.qualFree || '';
-                            b.querySelector('.customer-report').value = d.content || '';
-                            b.querySelector('.staff-thoughts').value = d.staffThoughts || '';
-                        }
-                    }
-                } else {
-                    // 【重要】新規の時のみURLパラメータを適用
-                    applyUrlParams();
-                }
-
+        const container = document.getElementById('reportContainer');
+        container.innerHTML = '';
+        window.addReportBlock();
+        
+        const blocks = container.querySelectorAll('.report-block');
+        const b = blocks[blocks.length - 1];
+        if (b) {
+            const staffSelect = b.querySelector('.customer-staff-dropdown');
+            if (staffSelect) staffSelect.value = d.customerStaffName || '';
+            b.querySelector('.qual-data-1').value = d.qualData1 || '';
+            b.querySelector('.qual-data-2').value = d.qualData2 || '';
+            b.querySelector('.qual-data-3').value = d.qualData3 || '';
+            b.querySelector('.qual-free').value   = d.qualFree || '';
+            b.querySelector('.customer-report').value = d.content || '';
+            b.querySelector('.staff-thoughts').value = d.staffThoughts || '';
+        }
+    }
+} else {
+    applyUrlParams();
+}
                 // 共通：報告欄が空なら1つ追加
                 if (document.getElementById('reportContainer').children.length === 0) {
                     window.addReportBlock();
@@ -733,24 +740,24 @@ document.getElementById('submitBtnTop').onclick = async () => {
         const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
         
         // 🌟 1. 編集用IDの取得を最初に行う（これでエラーを防止）
-// 修正後（重複した query 定義を整理し、editId の判定を確実にする）
-        const params = new URLSearchParams(window.location.search);
-        const editId = params.get('editId');
+// --- history.html 327行目付近 顧客カウントアップの判定を修正 ---
+const params = new URLSearchParams(window.location.search);
+const editId = params.get('editId');
+const isNewRecord = !editId; // 🌟 複写(copyId)の場合も true になり、新規扱いとなる
 
-        if (!editId) {
-            // 新規登録時のみ顧客情報の訪問カウントをアップ (Read/Write節約)
-            const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
-            const qSnap = await getDocs(qCust);
-            if (!qSnap.empty) {
-                const targetDoc = qSnap.docs[0];
-                await updateDoc(targetDoc.ref, {
-                    visitCount: (parseInt(targetDoc.data().visitCount) || 0) + 1,
-                    lastVisitDate: vDate.replace(/-/g, '/'),
-                    updatedAt: serverTimestamp()
-                });
-            }
-        }
-
+if (isNewRecord) {
+    // 新規登録（または複写登録）時のみ顧客情報の訪問カウントをアップ
+    const qCust = query(collection(db, "customers"), where("matchKey", "==", matchKey), limit(1));
+    const qSnap = await getDocs(qCust);
+    if (!qSnap.empty) {
+        const targetDoc = qSnap.docs[0];
+        await updateDoc(targetDoc.ref, {
+            visitCount: (parseInt(targetDoc.data().visitCount) || 0) + 1,
+            lastVisitDate: vDate.replace(/-/g, '/'),
+            updatedAt: serverTimestamp()
+        });
+    }
+}
         const blocks = document.querySelectorAll('.report-block');
         
        // 🌟 3. 各報告ブロックを保存（新規・編集の自動判定）
@@ -783,12 +790,15 @@ document.getElementById('submitBtnTop').onclick = async () => {
                 updatedAt:         serverTimestamp()
             };
 
-            if (editId) {
-                await setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
-            } else {
-                recordData.createdAt = serverTimestamp();
-                await addDoc(collection(db, "activity_records"), recordData);
-            }
+// --- history.html 360行目付近 保存先を修正 ---
+if (editId) {
+    // 既存データの修正
+    await setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
+} else {
+    // 新規登録（複写を含む）
+    recordData.createdAt = serverTimestamp();
+    await addDoc(collection(db, "activity_records"), recordData);
+}
         }));
 
         // 2. 回覧通知の作成（自分も含めて全員に送る）
