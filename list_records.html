@@ -192,11 +192,8 @@
 
             try {
                 const ref = collection(db, "activity_records");
-                // 🌟 limit を 50 に増やして通信回数を減らす
+                // 🌟 ここを「日付順・50件」に固定。これで通信は1回（Read 50）で終わります。
                 let constraints = [orderBy("visitDate", "desc"), limit(50)];
-
-                if (dept !== 'ALL' && dept !== 'OTHER') constraints.push(where("visitorDept", "==", dept));
-                if (custK) constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + '\uf8ff'));
 
                 if (append && lastVisible) {
                     constraints.push(startAfter(lastVisible));
@@ -204,7 +201,7 @@
 
                 const q = query(ref, ...constraints);
                 const snap = await getDocs(q);
-
+                
                 if (snap.empty && !append) {
                     tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-black uppercase tracking-widest">該当する実績はありません</td></tr>`;
                     if (moreBtn) moreBtn.classList.add('hidden');
@@ -247,22 +244,34 @@
         };
 
         window.updateView = () => {
-            let filtered = [...allRecords];
-            
-            // 🌟 修正：漢字の顧客名でも「あかさたな」で判定できるように正規表現を強化
+            // 🌟 1. 現在の検索フォームの値を最新状態で取得
+            const custK  = document.getElementById('filterCustomer').value.trim();
+            const visiK  = document.getElementById('filterVisitor').value.trim();
+            const startD = document.getElementById('startDate').value;
+            const endD   = document.getElementById('endDate').value;
+            const dept   = document.getElementById('deptFilter').value;
+
+            // 🌟 2. 読み込み済みデータ(allRecords)に対して、全ての条件で絞り込む
+            let filtered = allRecords.filter(r => {
+                const mCust = !custK || (r.customerName || "").includes(custK);
+                const mVisi = !visiK || (r.visitorName || "").includes(visiK);
+                const mDept = (dept === 'ALL') ? true : 
+                              (dept === 'OTHER') ? !TARGET_DEPTS.includes(r.visitorDept) : 
+                              r.visitorDept === dept;
+                const mStart = !startD || normalizeDate(r.visitDate) >= startD;
+                const mEnd   = !endD   || normalizeDate(r.visitDate) <= endD;
+                return mCust && mVisi && mDept && mStart && mEnd;
+            });
+
+            // 🌟 3. かなフィルターの判定（正規表現）
             const rangeMap = {
-                'あ': /^[あ-おア-オ安阿伊藤宇江遠]/,
-                'か': /^[か-こカ-コ加河亀菊久工国]/,
-                'さ': /^[さ-そサ-ソ佐佐藤斉酒榊]/,
-                'た': /^[た-とタ-トだ-ど田高武竹立]/,
-                'な': /^[な-のナ-ノ内中永長名]/,
-                'は': /^[は-ほハ-ホ波橋羽浜服]/,
-                'ま': /^[ま-もマ-モ前松真丸]/,
-                'や': /^[や-よヤ-ヨ山谷八]/,
-                'ら': /^[ら-ろラ-ロ]/,
-                'わ': /^[わ-んワ-ン]/
+                'あ': /^[あ-おア-オ安阿伊藤宇江遠]/, 'か': /^[か-こカ-コ加河亀菊久工国]/,
+                'さ': /^[さ-そサ-ソ佐佐藤斉酒榊]/, 'た': /^[た-とタ-トだ-ど田高武竹立]/,
+                'な': /^[な-のナ-ノ内中永長名]/, 'は': /^[は-ほハ-ホ波橋羽浜服]/,
+                'ま': /^[ま-もマ-モ前松真丸]/, 'や': /^[や-よヤ-ヨ山谷八]/,
+                'ら': /^[ら-ろラ-ロ]/, 'わ': /^[わ-んワ-ン]/
             };
-            
+
             if (currentKana !== 'all') {
                 if (currentKana === '他') {
                     filtered = filtered.filter(r => !Object.values(rangeMap).some(re => re.test(r.customerName || "")));
@@ -271,16 +280,14 @@
                 }
             }
 
-            // 🌟 追加：表示直前の並び替えロジック
+            // 🌟 4. 並び替え（全件なら日付順、検索時は名前順）
             filtered.sort((a, b) => {
                 if (currentKana === 'all' && !isSearching) {
-                    // 全件モードなら「日付」の新しい順
                     const dateA = a.visitDate || "";
                     const dateB = b.visitDate || "";
-                    return dateB.localeCompare(dateA);
+                    return dateB.localeCompare(dateA); // 日付降順
                 } else {
-                    // かなフィルターや詳細検索時は「お客様名（五十音）」順
-                    return (a.customerName || "").localeCompare(b.customerName || "");
+                    return (a.customerName || "").localeCompare(b.customerName || ""); // 名前昇順
                 }
             });
 
