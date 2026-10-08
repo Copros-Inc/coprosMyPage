@@ -18,50 +18,65 @@ export const db = getFirestore(app);
 export const TARGET_DEPTS = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所"];
 
 let unsubscribeStore = null;
-/**
- * 通知のリアルタイム監視
- */
-export function watchNotifications(callback) {
+
+// 🌟 リアルタイム性と省エネのバランス調整版
+export async function watchNotifications(callback) {
     const rawName = sessionStorage.getItem('userName') || "";
     if (!rawName) return;
 
-    if (unsubscribeStore) { unsubscribeStore(); unsubscribeStore = null; }
+    const now = Date.now();
+    const lastCheck = parseInt(sessionStorage.getItem('cp_last_noti_check') || 0);
 
-    // 🌟 数字を丸数字に変換する親切関数
+    // 🌟 「5分間（300,000ms）」は、自動での再取得を制限する（＝開きっぱなし時のRead抑制）
+    // ただし、ページをリロードしたり、callback（手動更新）がある場合は強制取得する
+    if (now - lastCheck < 300000 && !callback) {
+        // キャッシュがあればそれを表示（バッジが消えるのを防ぐ）
+        renderStoredBadge();
+        return; 
+    }
+
+    try {
+        const q = query(collection(db, "notifications"), where("recipient", "==", rawName), where("isRead", "==", false));
+        const snap = await getDocs(q);
+        const allUnread = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // データを保存しておく
+        sessionStorage.setItem('cp_unread_cache', JSON.stringify(allUnread));
+        sessionStorage.setItem('cp_last_noti_check', now);
+
+        renderBadge(allUnread);
+        if (callback) callback(allUnread);
+    } catch (e) { console.error(e); }
+}
+
+// 🌟 保存されているデータからバッジを再描画する（通信しない）
+function renderStoredBadge() {
+    const cached = sessionStorage.getItem('cp_unread_cache');
+    if (cached) renderBadge(JSON.parse(cached));
+}
+
+function renderBadge(allUnread) {
     const toCircleNum = (n) => {
         const circles = ["⓪","①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
         return circles[n] || `(${n})`;
     };
-
-    const q = query(collection(db, "notifications"), where("recipient", "==", rawName), where("isRead", "==", false));
-
-    unsubscribeStore = onSnapshot(q, (snap) => {
-        const allUnread = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // 🌟 通知の仕分け（コメント以外はすべて回覧としてカウント）
-        const kairanCount = allUnread.filter(n => n.type !== "コメント入電").length;
-        const commentCount = allUnread.filter(n => n.type === "コメント入電").length;
-
-        const badge = document.getElementById('unreadBadge');
-        if (badge) {
-            if (allUnread.length > 0) {
-                let badgeHtml = "";
-                // 🌟 回覧数を丸数字で表示
-                if (kairanCount > 0) badgeHtml += `<span class="text-[11px]">${toCircleNum(kairanCount)}</span>`;
-                // 🌟 コメント数を 💬(n) で表示
-                if (commentCount > 0) badgeHtml += `<span class="ml-1 text-[12px]">💬</span><span class="text-[10px]">(${commentCount})</span>`;
-                
-                badge.innerHTML = badgeHtml;
-                badge.style.display = 'flex';
-                badge.classList.add('animate-bounce');
-            } else {
-                badge.style.display = 'none';
-            }
+    const kairanCount = allUnread.filter(n => n.type !== "コメント入電").length;
+    const commentCount = allUnread.filter(n => n.type === "コメント入電").length;
+    const badge = document.getElementById('unreadBadge');
+    if (badge) {
+        if (allUnread.length > 0) {
+            let badgeHtml = (kairanCount > 0 ? `<span class="text-[11px]">${toCircleNum(kairanCount)}</span>` : "") +
+                            (commentCount > 0 ? `<span class="ml-1 text-[12px]">💬</span><span class="text-[10px]">(${commentCount})</span>` : "");
+            badge.innerHTML = badgeHtml;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
         }
-        
-        if (callback) callback(allUnread);
-        window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
-    }, (error) => { console.error("Snapshot error:", error); });
+    }
+}
+    // 🌟 callbackがあれば実行し、更新イベントを飛ばす
+    if (callback) callback(allUnread);
+    window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
 }
 
 // 🌟 ローディング演出の統一
