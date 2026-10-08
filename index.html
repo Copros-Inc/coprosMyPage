@@ -167,11 +167,10 @@ window.addEventListener('load', () => {
                     const qNoti = query(collection(db, "notifications"), 
                                         where("recipient", "==", userData.name), 
                                         where("isRead", "==", false),
-                                        limit(50)); // 50件以上は「50+」と表示すれば十分省エネ
+                                        limit(50));
                     const snapNoti = await getDocs(qNoti);
                     const count = snapNoti.size;
 
-                    // 🌟 修正：分析(filter)を廃止し、メッセージをシンプルにして即座に出す
                     let msg = `${userData.name}さん、お疲れ様です！`;
                     if (count > 0) {
                         msg += `\n\n📢 未読の通知が ${count === 50 ? '50件以上' : count + '件'} あります。\n回覧一覧から確認してください。`;
@@ -182,7 +181,6 @@ window.addEventListener('load', () => {
                     sessionStorage.setItem('userName', userData.name);
                     sessionStorage.setItem('userDept', userData.dept || '未設定');
                     
-                    // 🌟 追加：ログイン時に古いキャッシュを狙い撃ちでクリア（更新されない問題を解決）
                     Object.keys(sessionStorage).forEach(k => {
                         if (k.includes('cache')) sessionStorage.removeItem(k);
                     });
@@ -196,14 +194,20 @@ window.addEventListener('load', () => {
                         localStorage.removeItem('cp_saved_pw');
                     }
                     location.href = 'list.html';
-                }
-
-                } else { alert("パスワードが正しくありません。"); btn.disabled = false; btn.innerHTML = originalHTML; }
-            } else { alert("ユーザーIDが見つかりません。"); btn.disabled = false; btn.innerHTML = originalHTML; }
+                } else { 
+                    alert("パスワードが正しくありません。"); 
+                    btn.disabled = false; 
+                    btn.innerHTML = originalHTML; 
+            } else { 
+                alert("ユーザーIDが見つかりません。"); 
+                btn.disabled = false; 
+                btn.innerHTML = originalHTML; 
+            }
         } catch (error) { 
             console.error(error);
-            alert("通信エラーが発生しました。ネット接続を確認してください。"); 
-            btn.disabled = false; btn.innerHTML = originalHTML; 
+            alert("通信エラーが発生しました。"); 
+            btn.disabled = false; 
+            btn.innerHTML = originalHTML; 
         }
     };
 </script>
