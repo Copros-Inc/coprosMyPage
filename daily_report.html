@@ -404,8 +404,14 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        // 1. 実績本体にコメントを追加（ここは変更なし）
-        await updateDoc(doc(db, "activity_records", recordId), { 
+        // 元の報告者名を取得するためにドキュメントを一度参照
+        const docRef = doc(db, "activity_records", recordId);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) return;
+        const originalVisitorName = docSnap.data().visitorName;
+
+        // 1. 実績本体にコメントを追加
+        await updateDoc(docRef, { 
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
@@ -418,8 +424,6 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
         }
 
         // 3. 通知のUpsert（更新または作成）
-        // 省エネのため、ループ内で await しますが、同じ人への重複はこれで防げます
-        const batch = [];
         for (const recipient of targetRecipients) {
             const qNoti = query(collection(db, "notifications"), 
                 where("recipient", "==", recipient),
@@ -432,29 +436,33 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
                 // 既存通知があれば更新（未読に戻す）
                 await updateDoc(nSnap.docs[0].ref, { 
                     isRead: false, 
-                    visitorName: sender,
+                    visitorName: originalVisitorName, // 🌟 報告者の名前を維持！
+                    updatedBy: sender, // 誰が更新したか記録
                     createdAt: serverTimestamp() 
                 });
             } else {
                 // 新規通知作成
                 await addDoc(collection(db, "notifications"), { 
                     recipient: recipient, 
-                    visitorName: sender, 
+                    visitorName: originalVisitorName, // 🌟 報告者の名前をセット！
                     customerName, 
                     visitDate: fDate, 
-                    type: "コメント入電", 
+                    type: "コメント", 
                     isRead: false, 
                     createdAt: serverTimestamp() 
                 });
             }
         }
 
-const [y, m] = visitDate.split(/[-/]/);
-const targetMonth = m.padStart(2, '0');
-sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${targetMonth}`); // 確実にキーを指定
-alert("送信しました");
-sessionStorage.setItem('cp_auto_open_recordId', recordId); 
-location.reload();
+        // キャッシュ全削除（サイドバーのバッジも強制更新させるため）
+        Object.keys(sessionStorage).forEach(k => {
+            if (k.includes('cache') || k.includes('noti')) sessionStorage.removeItem(k);
+        });
+
+        alert("送信しました");
+        sessionStorage.setItem('cp_auto_open_recordId', recordId); 
+        location.reload();
+
     } catch (e) { alert("送信エラー: " + e.message); }
 };
 
