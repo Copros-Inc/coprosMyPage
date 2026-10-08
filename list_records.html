@@ -251,15 +251,21 @@
             const endD   = document.getElementById('endDate').value;
             const dept   = document.getElementById('deptFilter').value;
 
-            // 🌟 2. 読み込み済みデータ(allRecords)に対して、全ての条件で絞り込む
+            // 🌟 修正：条件が空（未入力）の時は、その条件を無視するように改善
             let filtered = allRecords.filter(r => {
+                const rDate = normalizeDate(r.visitDate); // 比較用に 2024-01-01 形式に変換
+
                 const mCust = !custK || (r.customerName || "").includes(custK);
                 const mVisi = !visiK || (r.visitorName || "").includes(visiK);
+                
                 const mDept = (dept === 'ALL') ? true : 
                               (dept === 'OTHER') ? !TARGET_DEPTS.includes(r.visitorDept) : 
                               r.visitorDept === dept;
-                const mStart = !startD || normalizeDate(r.visitDate) >= startD;
-                const mEnd   = !endD   || normalizeDate(r.visitDate) <= endD;
+                
+                // 🌟 日付判定を確実に（空文字なら比較しない）
+                const mStart = (startD === "" || rDate >= startD);
+                const mEnd   = (endD === ""   || rDate <= endD);
+                
                 return mCust && mVisi && mDept && mStart && mEnd;
             });
 
@@ -272,22 +278,29 @@
                 'ら': /^[ら-ろラ-ロ]/, 'わ': /^[わ-んワ-ン]/
             };
 
+                       // 🌟 予知対策：実績データに kana がないため「他」を判定するロジックを補強
             if (currentKana !== 'all') {
                 if (currentKana === '他') {
-                    filtered = filtered.filter(r => !Object.values(rangeMap).some(re => re.test(r.customerName || "")));
+                    // 全てのあかさたな正規表現に当てはまらないものを「他」とする
+                    filtered = filtered.filter(r => {
+                        const name = r.customerName || "";
+                        return !Object.values(rangeMap).some(re => re.test(name));
+                    });
                 } else {
-                    filtered = filtered.filter(r => rangeMap[currentKana] && rangeMap[currentKana].test(r.customerName || ""));
+                    filtered = filtered.filter(r => 
+                        rangeMap[currentKana] && rangeMap[currentKana].test(r.customerName || "")
+                    );
                 }
             }
 
-            // 🌟 4. 並び替え（全件なら日付順、検索時は名前順）
+            // 🌟 予知対策：全件表示の際、追加読み込み後も確実に日付順を維持する
             filtered.sort((a, b) => {
                 if (currentKana === 'all' && !isSearching) {
-                    const dateA = a.visitDate || "";
-                    const dateB = b.visitDate || "";
-                    return dateB.localeCompare(dateA); // 日付降順
+                    // visitDate(2024/10/08) をそのまま比較して降順（近日順）
+                    return (b.visitDate || "").localeCompare(a.visitDate || "");
                 } else {
-                    return (a.customerName || "").localeCompare(b.customerName || ""); // 名前昇順
+                    // 検索時は五十音順
+                    return (a.customerName || "").localeCompare(b.customerName || "");
                 }
             });
 
