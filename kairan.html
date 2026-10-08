@@ -86,77 +86,58 @@
             deptSelect.innerHTML = '<option value="ALL">全部署</option>' + 
                 depts.map(d => `<option value="${d}">${d}</option>`).join('');
         }                
-                // 1.  読み込み件数の最適化50件
-                const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
-                const snap = await getDocs(q);
-                let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                notices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+// 1.  読み込み件数の最適化50件
+const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
+// --- 修正箇所：init関数内 ---
+const snap = await getDocs(q);
+let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                const recordDataMap = {};
-                if (notices.length > 0) {
-                    // 🌟 爆速・省エネ：通知に含まれる顧客名だけを抽出して一括取得
-                    const allCustNames = [...new Set(notices.filter(n => !n.type.includes("アポ")).map(n => n.customerName))];
-                    
-                    // 実績取得の効率化50件
-                    for (let i = 0; i < allCustNames.length; i += 30) {
-                        const chunk = allCustNames.slice(i, i + 30);
-                        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(50));
-                        const rSnap = await getDocs(qr);
-                        
-                        // 取得した実績を一時的にメモリへ格納
-                        const tempMap = {};
-                        rSnap.forEach(rd => {
-                            const d = rd.data();
-                            const key = `${clean(d.customerName)}_${clean(d.visitDate)}_${clean(d.visitorName)}`;
-                            tempMap[key] = { recordId: rd.id, ...d };
-                        });
-
-                        notices.forEach(n => {
-                            const nKey = `${clean(n.customerName)}_${clean(n.visitDate)}_${clean(n.visitorName)}`;
-                            if (tempMap[nKey]) {
-                                recordDataMap[n.id] = tempMap[nKey];
-                            }
-                        });
-                    }
-                }
-                // 🌟 自動掃除機（削除）を撤廃し、表示側で「最新の1件」に名寄せする
-            const uniqueMap = new Map();
-            notices.forEach(n => {
-                const uKey = `${clean(n.recipient)}_${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
-                if (!uniqueMap.has(uKey)) uniqueMap.set(uKey, n);
-            });
-
-            // 🌟 修正：紐付けに失敗していても、通知が存在するなら必ず表示させる（カードが出ない問題を解決）
-            const finalNotices = Array.from(uniqueMap.values());
-            
-            // 全ての通知を表示対象にする（実績がない場合は空のオブジェクトを表示に使う）
-            renderList(finalNotices, recordDataMap);
-                
- const lastOpenedId = sessionStorage.getItem('cp_last_opened_kairan');
-    if (lastOpenedId) {
-        setTimeout(() => {
-            const item = document.getElementById(`item-${lastOpenedId}`);
-            if (item) {
-                const content = item.querySelector('.accordion-content');
-                if (content) {
-                    content.style.display = 'block';
-                    item.querySelector('.fa-chevron-down').style.transform = 'rotate(180deg)';
-                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
-            sessionStorage.removeItem('cp_last_opened_kairan');
-        }, 300);
+// 🌟 修正1：名寄せロジックの強化（重複表示をここで防ぐ）
+const uniqueMap = new Map();
+notices.forEach(n => {
+    // IDまたは内容に基づくユニークキー（受信者_訪問者_顧客_日付）
+    const uKey = `${clean(n.recipient)}_${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
+    if (!uniqueMap.has(uKey)) {
+        uniqueMap.set(uKey, n);
+    } else {
+        // すでに存在する場合、より新しい方（または未読の方）を優先するなどの処理も可能
     }
- } catch (e) { 
-                console.error("回覧取得エラー:", e); 
-                container.innerHTML = '<p class="text-center py-20 text-rose-400 font-bold uppercase text-xs font-black">データの同期に失敗しました</p>';
-            }
-        }
+});
+const finalNotices = Array.from(uniqueMap.values());
+finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+const recordDataMap = {};
+if (finalNotices.length > 0) {
+    // 🌟 修正2：通知に関連する「実績」を一括取得（Read数節約）
+    // 顧客名リストを抽出（30件ずつに分割してINクエリ）
+    const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
+    for (let i = 0; i < allCustNames.length; i += 30) {
+        const chunk = allCustNames.slice(i, i + 30);
+        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(100));
+        const rSnap = await getDocs(qr);
+        
+        rSnap.forEach(rd => {
+            const d = rd.data();
+            // 通知と紐付けるためのキー（顧客名_日付_訪問者）
+            const key = `${clean(d.customerName)}_${clean(d.visitDate)}_${clean(d.visitorName)}`;
+            recordDataMap[key] = { recordId: rd.id, ...d };
+        });
+    }
+}
+
+// 🌟 修正3：通知表示時の紐付けキーを統一
+// renderListに渡す際、個別の通知IDではなく、上記で生成したkeyで引けるように準備
+const noticesWithRecordKey = finalNotices.map(n => ({
+    ...n,
+    recordLookupKey: `${clean(n.customerName)}_${clean(n.visitDate)}_${clean(n.visitorName)}`
+}));
+
+renderList(noticesWithRecordKey, recordDataMap);
         
         function renderList(notices, recordDataMap) {
             const container = document.getElementById('kairanList');
             container.innerHTML = notices.length ? notices.map((n, idx) => {
-                const r = recordDataMap[n.id] || {}; 
+                const r = recordDataMap[n.recordLookupKey] || {}; 
                 const displayDate = n.visitDate || n.appointDate || "";
                 const dateFmt = displayDate ? String(displayDate).replace(/-/g,'/') : '日付不明';
                 const images = (r.attachments || []).map(f => f.base64 || f.url);
@@ -352,48 +333,35 @@ window.postComment = async (recordId, customerName, index, noticeId, visitDate) 
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        // 1. コメント本体の書き込み（実績 or 通知）
+        // 1. 実績本体へのコメント追加
         const collectionName = (recordId === noticeId) ? "notifications" : "activity_records"; 
         await updateDoc(doc(db, collectionName, recordId), { 
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
-        // 2. 宛先の整理（自分を除外し、一人ずつ処理）
+        // 2. 通知の作成（Readを一切行わない Upsert方式）
         const targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
-
-        // 3. 通知の重複防止（一人一通に集約）
+        
+        const batch = writeBatch(db);
         for (const recipient of targetRecipients) {
-            const qNoti = query(collection(db, "notifications"), 
-                where("recipient", "==", recipient),
-                where("customerName", "==", customerName),
-                where("visitDate", "==", visitDate)
-            );
-            const nSnap = await getDocs(qNoti);
-
-            if (!nSnap.empty) {
-                // 🌟 予知対策：既存のカードがあれば「未読」に戻して時間を更新するだけ（増えない！）
-                await updateDoc(nSnap.docs[0].ref, { 
-                    isRead: false, 
-                    visitorName: sender, // 最後にコメントした人を表示
-                    createdAt: serverTimestamp() 
-                });
-            } else {
-                // 新規作成
-                await addDoc(collection(db, "notifications"), {
-                    recipient: recipient,
-                    visitorName: sender,
-                    customerName: customerName,
-                    visitDate: visitDate, 
-                    type: "コメント入電",
-                    isRead: false,
-                    createdAt: serverTimestamp()
-                });
-            }
+            // 🌟 予知解決：IDを「受信者_顧客名_日付」で固定する
+            // これにより getDocs で探す必要がなくなり、Read数が激減し、かつ重複もしない
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${clean(visitDate)}`;
+            const notiRef = doc(db, "notifications", customNotiId);
+            
+            batch.set(notiRef, {
+                recipient: recipient,
+                visitorName: sender,
+                customerName: customerName,
+                visitDate: visitDate, 
+                type: "コメント入電",
+                isRead: false,
+                createdAt: serverTimestamp()
+            }, { merge: true }); // merge: true で既存のフィールドを維持しつつ更新
         }
+        await batch.commit();
         
-        // 4. カレンダーキャッシュの削除
         clearCalCache(visitDate);
-        
         alert("コメントを送信しました");
         sessionStorage.setItem('cp_last_opened_kairan', noticeId);
         location.reload(); 
