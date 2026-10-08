@@ -125,6 +125,7 @@
         import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy, startAfter }
             from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        let allRecords  = [];
         let lastVisible = null; 
         let isSearching = false; 
         let currentDisplayDate = new Date(); // 🌟 追加：現在表示中の年月
