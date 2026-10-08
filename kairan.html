@@ -277,7 +277,12 @@ renderList(validNotices, recordDataMap);
                         </div>
                     </div>
                 </div>`;
-            }).join('') : '<div class="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl"><p class="text-slate-300 font-black italic tracking-widest uppercase">No review items found</p></div>';
+}).join('') : `
+    <div class="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-white/50">
+        <i class="fa-solid fa-check-circle text-slate-200 text-4xl mb-4 block"></i>
+        <p class="text-slate-400 font-black text-sm uppercase tracking-widest">現在、確認が必要な回覧はありません</p>
+        <p class="text-slate-300 text-[10px] mt-2 font-bold">全ての通知を確認済みです。お疲れ様でした！</p>
+    </div>`;
         }
 
         // ▼ アコーディオン開く時に既読処理
