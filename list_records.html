@@ -127,6 +127,9 @@
         // =========================================================
         let allRecords  = [];
         let currentKana = 'all';
+        let lastVisible = null; 
+        // 🌟 追加：現在の検索モードを保持
+        let isSearching = false; 
 
         const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
 
@@ -188,17 +191,19 @@
             const startD = document.getElementById('startDate').value;
             const endD   = document.getElementById('endDate').value;
             const dept   = document.getElementById('deptFilter').value;
+            
+            // 詳細検索が入力されているか判定
+            isSearching = !!(custK || visiK || startD || endD || dept !== 'ALL');
 
             try {
                 const ref = collection(db, "activity_records");
-                let constraints = [orderBy("visitDate", "desc"), limit(20)];
+                // 🌟 limit を 50 に増やして通信回数を減らす
+                let constraints = [orderBy("visitDate", "desc"), limit(50)];
 
-                // 🌟 省エネ：サーバー側で絞り込み（インデックスエラー回避のため、重要なものに絞る）
                 if (dept !== 'ALL' && dept !== 'OTHER') constraints.push(where("visitorDept", "==", dept));
                 if (custK) constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + '\uf8ff'));
 
                 if (append && lastVisible) {
-                   
                     constraints.push(startAfter(lastVisible));
                 }
 
@@ -214,7 +219,7 @@
                 lastVisible = snap.docs[snap.docs.length - 1];
                 let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 🌟 メモリ内補助フィルタ（複雑な条件用）
+                // メモリ内補助フィルタ
                 if (visiK) newDocs = newDocs.filter(r => (r.visitorName || "").includes(visiK));
                 if (startD) newDocs = newDocs.filter(r => normalizeDate(r.visitDate) >= startD);
                 if (endD)   newDocs = newDocs.filter(r => normalizeDate(r.visitDate) <= endD);
@@ -223,18 +228,21 @@
 
                 window.updateView();
 
-                // 「もっと見る」ボタンの表示制御
+                // 🌟 ボタン表示の最適化（50件単位）
                 if (moreBtn) {
-                    if (snap.docs.length === 20) moreBtn.classList.remove('hidden');
-                    else moreBtn.classList.add('hidden');
+                    if (snap.docs.length === 50) {
+                        moreBtn.classList.remove('hidden');
+                        moreBtn.innerText = "もっと見る（次の50件）";
+                    } else {
+                        moreBtn.classList.add('hidden');
+                    }
                 }
-
             } catch (e) {
                 console.error(e);
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー: 条件を絞り込んでください</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
             }
         };
-
+        
         // 既存：あかさたなフィルター（そのまま）
         window.setKanaFilter = (btn, kana) => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'text-white'));
@@ -260,15 +268,25 @@
             };
             if (currentKana !== 'all') {
                 if (currentKana === '他') {
-                    filtered = filtered.filter(r =>
-                        !Object.values(rangeMap).some(re => re.test(r.customerName || ""))
-                    );
+                    filtered = filtered.filter(r => !Object.values(rangeMap).some(re => re.test(r.customerName || "")));
                 } else {
-                    filtered = filtered.filter(r =>
-                        rangeMap[currentKana] && rangeMap[currentKana].test(r.customerName || "")
-                    );
+                    filtered = filtered.filter(r => rangeMap[currentKana] && rangeMap[currentKana].test(r.customerName || ""));
                 }
             }
+
+            // 🌟 追加：表示直前の並び替えロジック
+            filtered.sort((a, b) => {
+                if (currentKana === 'all' && !isSearching) {
+                    // 全件モードなら「日付」の新しい順
+                    const dateA = a.visitDate || "";
+                    const dateB = b.visitDate || "";
+                    return dateB.localeCompare(dateA);
+                } else {
+                    // かなフィルターや詳細検索時は「お客様名（五十音）」順
+                    return (a.customerName || "").localeCompare(b.customerName || "");
+                }
+            });
+
             renderTable(filtered);
         };
 
