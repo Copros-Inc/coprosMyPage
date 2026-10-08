@@ -332,61 +332,84 @@ renderList(validNotices, recordDataMap);
 
 window.postComment = async (recordId, customerName, index, noticeId, visitDate) => {
     const text = document.getElementById(`cmt-text-${index}`).value.trim();
-    
-    // 🌟 .innerText を見るように変更
-    const receiver = document.getElementById(`cmt-to-display-${index}`).innerText;
+    const receiverRaw = document.getElementById(`cmt-to-display-${index}`).innerText;
     const sender = myName || "管理者";
-    if (!text) return alert("コメントを入力してください");
+    
+    if (!text || receiverRaw === '選択してください') return alert("内容を入力してください");
 
     try {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        // 🌟 修正：紐付け先の判定を確実に
-        const isActivity = recordId && recordId.length > 15;
-        const collectionName = isActivity ? "activity_records" : "notifications"; 
-        const ref = doc(db, collectionName, recordId);
-        
-        await updateDoc(ref, { comments: arrayUnion({ sender, receiver, text, date: dateStr }) });
-        
-        await addDoc(collection(db, "notifications"), {
-            recipient: receiver,
-            visitorName: sender,
-            customerName: customerName,
-            visitDate: visitDate, 
-            type: "コメント入電",
-            isRead: false,
-            createdAt: serverTimestamp()
+        // 1. コメント本体の書き込み（実績 or 通知）
+        const collectionName = (recordId === noticeId) ? "notifications" : "activity_records"; 
+        await updateDoc(doc(db, collectionName, recordId), { 
+            comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
+
+        // 2. 宛先の整理（自分を除外し、一人ずつ処理）
+        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
+
+        // 3. 通知の重複防止（一人一通に集約）
+        for (const recipient of targetRecipients) {
+            const qNoti = query(collection(db, "notifications"), 
+                where("recipient", "==", recipient),
+                where("customerName", "==", customerName),
+                where("visitDate", "==", visitDate)
+            );
+            const nSnap = await getDocs(qNoti);
+
+            if (!nSnap.empty) {
+                // 🌟 予知対策：既存のカードがあれば「未読」に戻して時間を更新するだけ（増えない！）
+                await updateDoc(nSnap.docs[0].ref, { 
+                    isRead: false, 
+                    visitorName: sender, // 最後にコメントした人を表示
+                    createdAt: serverTimestamp() 
+                });
+            } else {
+                // 新規作成
+                await addDoc(collection(db, "notifications"), {
+                    recipient: recipient,
+                    visitorName: sender,
+                    customerName: customerName,
+                    visitDate: visitDate, 
+                    type: "コメント入電",
+                    isRead: false,
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+        
+        // 4. カレンダーキャッシュの削除
+        clearCalCache(visitDate);
         
         alert("コメントを送信しました");
         sessionStorage.setItem('cp_last_opened_kairan', noticeId);
         location.reload(); 
     } catch (e) { 
         console.error(e);
-        alert("送信エラー: 宛先が「関係者全員」の場合は通知のみ送信されます。"); 
+        alert("送信エラー: " + e.message); 
     }
 };
 
 window.deleteComment = async (recordId, commentIdx, noticeId) => {
     if (!confirm("自分のコメントを取り消しますか？")) return;
     try {
-        // 🌟 修正：実績か通知かを「IDが一致するかどうか」で確実に判定
-        // 第一引数(recordId) と 第三引数(noticeId) が同じなら「通知」、違えば「実績」
         const collectionName = (recordId === noticeId) ? "notifications" : "activity_records"; 
-        
         const ref = doc(db, collectionName, recordId);
         const docSnap = await getDoc(ref);
         
         if (docSnap.exists()) {
-            let comments = docSnap.data().comments || [];
-            
-            // 指定した番号のコメントを削除
+            const data = docSnap.data();
+            let comments = data.comments || [];
             comments.splice(parseInt(commentIdx), 1); 
             
             await updateDoc(ref, { comments: comments });
+
+            // 🌟 追加（予知対策）：キャッシュを削除してリロード後に最新状態を表示させる
+            const visitDate = data.visitDate || data.appointDate;
+            if (visitDate) clearCalCache(visitDate);
             
-            // キャッシュを保持してリロード
             sessionStorage.setItem('cp_last_opened_kairan', noticeId);
             alert("コメントを削除しました");
             location.reload();
