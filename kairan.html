@@ -86,8 +86,8 @@
             deptSelect.innerHTML = '<option value="ALL">全部署</option>' + 
                 depts.map(d => `<option value="${d}">${d}</option>`).join('');
         }                
-                // 1. 通知を最新100件取得（読み取り1回）
-                const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(100));
+                // 1.  読み込み件数の最適化50件
+                const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
                 const snap = await getDocs(q);
                 let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 notices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -97,10 +97,10 @@
                     // 🌟 爆速・省エネ：通知に含まれる顧客名だけを抽出して一括取得
                     const allCustNames = [...new Set(notices.filter(n => !n.type.includes("アポ")).map(n => n.customerName))];
                     
-                    // Firestoreの 'in' 句は一度に30件までなので分割して取得（念のための安全処理）
+                    // 実績取得の効率化50件
                     for (let i = 0; i < allCustNames.length; i += 30) {
                         const chunk = allCustNames.slice(i, i + 30);
-                        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(300));
+                        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(50));
                         const rSnap = await getDocs(qr);
                         
                         // 取得した実績を一時的にメモリへ格納
