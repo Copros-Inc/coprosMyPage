@@ -120,6 +120,16 @@
                     }
                 }
 
+            // 🌟 幽霊通知（実績がない通知）をひっそりと自動削除
+            const invalidNotices = notices.filter(n => !n.type.includes("アポ") && !recordDataMap[n.id]);
+            if (invalidNotices.length > 0) {
+                const batch = writeBatch(db);
+                invalidNotices.forEach(n => {
+                    batch.delete(doc(db, "notifications", n.id));
+                });
+                await batch.commit(); 
+            }
+
  const validNotices = notices.filter(n => {
     if (n.type.includes("アポ")) return true; 
     return recordDataMap[n.id] !== undefined; // 実績が見つからない通知は無視！
