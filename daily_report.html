@@ -125,8 +125,7 @@ async function init() {
                 
                 // コメント送信先リストの作成
                 const commentators = (r.comments || []).map(c => c.sender);
-                const toOptions = [...new Set([r.visitorName, ...commentators])];
-                const optionHtml = toOptions.map(name => `<option value="${name}">${name}</option>`).join('') + `<option value="全員">全員</option>`;
+
                 
                 // コメント履歴HTMLの作成（送信者・宛先・日時の完全復元）
                 const commentHtml = (r.comments || []).map(c => `
@@ -172,9 +171,15 @@ async function init() {
     <div class="text-[10px] font-bold text-slate-400">
         <i class="fa-solid fa-fingerprint mr-1"></i> ID: ${r.id}
     </div>
-    <button onclick="location.href='history.html?editId=${r.id}'" class="px-6 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg font-black text-xs hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center gap-2 shadow-sm">
-        <i class="fa-solid fa-pen-to-square"></i> この実績を修正・削除する
-    </button>
+    <div class="flex gap-2">
+        <!-- 🌟 複写ボタンを追加 -->
+        <button onclick="location.href='history.html?copyId=${r.id}'" class="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg font-black text-xs hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-copy"></i> 複写
+        </button>
+        <button onclick="location.href='history.html?editId=${r.id}'" class="px-6 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg font-black text-xs hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-pen-to-square"></i> 修正・削除
+        </button>
+    </div>
 </div>
                         <div class="mb-8">
                             <p class="info-label mb-2">定性データ分析</p>
@@ -404,65 +409,40 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        // 元の報告者名を取得するためにドキュメントを一度参照
+        // 1. 実績本体にコメントを追加（上書き更新）
         const docRef = doc(db, "activity_records", recordId);
-        const docSnap = await getDoc(docRef);
-        if (!docSnap.exists()) return;
-        const originalVisitorName = docSnap.data().visitorName;
-
-        // 1. 実績本体にコメントを追加
         await updateDoc(docRef, { 
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
-        // 2. 通知対象者のリストアップ（自分を除外）
-        let targetRecipients = [];
-        if (receiverRaw === '全員') {
-            targetRecipients = allStaffs.map(s => s.name).filter(name => name !== sender);
-        } else {
-            targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
-        }
-
-        // 3. 通知のUpsert（更新または作成）
+        // 2. 通知のUpsert（Read 0の直接書き込み）
+        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
+        const batch = writeBatch(db);
+        
         for (const recipient of targetRecipients) {
-            const qNoti = query(collection(db, "notifications"), 
-                where("recipient", "==", recipient),
-                where("customerName", "==", customerName),
-                where("visitDate", "==", fDate)
-            );
-            const nSnap = await getDocs(qNoti);
-
-            if (!nSnap.empty) {
-                // 既存通知があれば更新（未読に戻す）
-                await updateDoc(nSnap.docs[0].ref, { 
-                    isRead: false, 
-                    visitorName: originalVisitorName, // 🌟 報告者の名前を維持！
-                    updatedBy: sender, // 誰が更新したか記録
-                    createdAt: serverTimestamp() 
-                });
-            } else {
-                // 新規通知作成
-                await addDoc(collection(db, "notifications"), { 
-                    recipient: recipient, 
-                    visitorName: originalVisitorName, // 🌟 報告者の名前をセット！
-                    customerName, 
-                    visitDate: fDate, 
-                    type: "コメント", 
-                    isRead: false, 
-                    createdAt: serverTimestamp() 
-                });
-            }
+            // IDを「受信者_顧客_日付」で固定して名寄せ
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${clean(fDate)}`;
+            const notiRef = doc(db, "notifications", customNotiId);
+            
+            batch.set(notiRef, {
+                recipient: recipient,
+                visitorName: dailyData[index].visitorName, // 元の訪問者
+                customerName: customerName,
+                visitDate: fDate, 
+                type: "コメント入電",
+                isRead: false,
+                createdAt: serverTimestamp()
+            }, { merge: true });
         }
+        await batch.commit();
 
-        // キャッシュ全削除（サイドバーのバッジも強制更新させるため）
-        Object.keys(sessionStorage).forEach(k => {
-            if (k.includes('cache') || k.includes('noti')) sessionStorage.removeItem(k);
-        });
+        // 自身のキャッシュを削除してリフレッシュ
+        const [y, m] = visitDate.split(/[-/]/);
+        sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
+        sessionStorage.setItem('cp_auto_open_recordId', recordId); 
 
         alert("送信しました");
-        sessionStorage.setItem('cp_auto_open_recordId', recordId); 
         location.reload();
-
     } catch (e) { alert("送信エラー: " + e.message); }
 };
 
