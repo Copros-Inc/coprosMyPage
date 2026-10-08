@@ -413,14 +413,20 @@ function autoOpenFirst() {
             <div class="detail-content text-slate-400 text-xs uppercase">${data.visitorDept || '不明'}</div>
         </div>
     </div>
-    <div class="flex justify-between items-center mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
-        <div class="text-[10px] font-bold text-slate-400">
-            <i class="fa-solid fa-fingerprint mr-1"></i> ID: ${data.id}
-        </div>
+<div class="flex justify-between items-center mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+    <div class="text-[10px] font-bold text-slate-400">
+        <i class="fa-solid fa-fingerprint mr-1"></i> ID: ${data.id}
+    </div>
+    <div class="flex gap-2">
+        <!-- 🌟 複写ボタンを追加 -->
+        <button onclick="location.href='history.html?copyId=${data.id}'" class="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg font-black text-xs hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-copy"></i> 複写
+        </button>
         <button onclick="location.href='history.html?editId=${data.id}'" class="px-6 py-2 bg-white text-blue-600 border border-blue-200 rounded-lg font-black text-xs hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center gap-2 shadow-sm">
-            <i class="fa-solid fa-pen-to-square"></i> この実績を修正・削除する
+            <i class="fa-solid fa-pen-to-square"></i> 修正・削除
         </button>
     </div>
+</div>
     <div class="mb-8">
         <p class="detail-label mb-3">定性データ分析</p>
         <div class="flex flex-wrap gap-2">
@@ -509,34 +515,43 @@ window.postComment = async (recordId, customerName) => {
     try {
         const ref = doc(db, "activity_records", recordId);
         const docSnap = await getDoc(ref);
-        const recordData = docSnap.exists() ? docSnap.data() : {};
+        if (!docSnap.exists()) return;
+        const recordData = docSnap.data();
         const visitDate = recordData.visitDate || "";
+        const fDate = visitDate.replace(/-/g, '/');
 
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        await updateDoc(ref, { comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) });
+        // 1. 実績本体にコメントを追加（上書き更新）
+        await updateDoc(ref, { 
+            comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
+        });
 
+        // 2. 通知のUpsert（Read 0の直接書き込み）
         const targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
-
+        const batch = writeBatch(db);
+        
         for (const recipient of targetRecipients) {
-            const qNoti = query(collection(db, "notifications"), 
-                where("recipient", "==", recipient),
-                where("customerName", "==", customerName),
-                where("visitDate", "==", visitDate)
-            );
-            const nSnap = await getDocs(qNoti);
-            if (!nSnap.empty) {
-                await updateDoc(nSnap.docs[0].ref, { isRead: false, visitorName: sender, createdAt: serverTimestamp() });
-            } else {
-                await addDoc(collection(db, "notifications"), {
-                    recipient, visitorName: sender, customerName, visitDate, 
-                    type: "コメント入電", isRead: false, createdAt: serverTimestamp()
-                });
-            }
+            // IDを「受信者_顧客_日付」で固定して名寄せ
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${clean(fDate)}`;
+            const notiRef = doc(db, "notifications", customNotiId);
+            
+            batch.set(notiRef, {
+                recipient: recipient,
+                visitorName: recordData.visitorName, // 元の訪問者
+                customerName: customerName,
+                visitDate: fDate, 
+                type: "コメント入電",
+                isRead: false,
+                createdAt: serverTimestamp()
+            }, { merge: true });
         }
-        alert("コメントを送信しました");
+        await batch.commit();
+
+        // キャッシュクリア（自分側の表示更新用）
         sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+        alert("コメントを送信しました");
         location.reload();
     } catch (e) { alert("送信エラー: " + e.message); }
 };
