@@ -416,7 +416,7 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
         });
 
         // 2. 通知のUpsert（Read 0の直接書き込み）
-        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()).filter(name => name !== sender);
+        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()); // 🌟 フィルターを削除
         const batch = writeBatch(db);
         
         for (const recipient of targetRecipients) {
