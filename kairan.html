@@ -125,15 +125,12 @@ if (finalNotices.length > 0) {
                     recordLookupKey: `${clean(n.recipient)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'')}`
                 }));
 
-                // 🌟 描画を実行
+                // 🌟 正しい順序：描画して、エラー処理で閉じる
                 renderList(noticesWithRecordKey, recordDataMap);
-
-            } // 🌟 ここで if (finalNotices.length > 0) を閉じます
-        } // 🌟 ここで try ブロックを閉じます
 
             } catch (e) { 
                 console.error("回覧取得エラー:", e); 
-                container.innerHTML = '<p class="text-center py-20 text-rose-400 font-bold">データの同期に失敗しました</p>';
+                document.getElementById('kairanList').innerHTML = '<p class="text-center py-20 text-rose-400 font-bold">データの同期に失敗しました</p>';
             }
         } // 🌟 ここで init 関数を正しく閉じます
         
