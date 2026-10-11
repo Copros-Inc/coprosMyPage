@@ -427,7 +427,7 @@ const notiRef = doc(db, "notifications", customNotiId); // 🌟これが抜け�
             
             batch.set(notiRef, {
                 recipient: recipient,
-                visitorName: dailyData[index].visitorName, // 元の訪問者
+                visitorName: dailyData[index].visitorName,
                 customerName: customerName,
                 visitDate: fDate, 
                 type: "コメント入電",
