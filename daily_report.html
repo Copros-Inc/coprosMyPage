@@ -421,8 +421,8 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
         
         for (const recipient of targetRecipients) {
             // IDを「受信者_顧客_日付」で固定して名寄せ
-            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${clean(fDate)}`;
-            const notiRef = doc(db, "notifications", customNotiId);
+            const cleanDate = visitDate.replace(/[-/]/g, ''); // 🌟 スラッシュとハイフンを完全に消す
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`;
             
             batch.set(notiRef, {
                 recipient: recipient,
