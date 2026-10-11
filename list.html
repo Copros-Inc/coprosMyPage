@@ -192,14 +192,13 @@ window.executeSearch = async (kana = 'all', append = false) => {
         // 🌟 2. 共通フィルタ
         if (rank) constraints.push(where("rank", "==", rank));
         if (type) constraints.push(where("type", "==", type));
-
-        // 🌟 3. 件数制限（ここを50に増やして Read 回数を減らす）
-        constraints.push(limit(50));
         
         if (append && lastVisible) {
             constraints.push(startAfter(lastVisible));
         }
 
+        constraints.push(limit(50));
+        
         const q = query(ref, ...constraints);
         const snap = await getDocs(q);
         
