@@ -88,19 +88,17 @@
         }                
 // 1.  読み込み件数の最適化50件
 const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
-// --- 修正箇所：init関数内 ---
+// --- kairan.html init関数内 修正 ---
 const snap = await getDocs(q);
 let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-// 🌟 修正1：名寄せロジックの強化（重複表示をここで防ぐ）
+// 🌟 最新の名寄せロジック（キーを完全に一致させる）
 const uniqueMap = new Map();
 notices.forEach(n => {
-    // IDまたは内容に基づくユニークキー（受信者_訪問者_顧客_日付）
-    const uKey = `${clean(n.recipient)}_${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
+    // 訪問者と顧客名、日付からユニークキーを作成（これで重複を排除）
+    const uKey = `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
     if (!uniqueMap.has(uKey)) {
         uniqueMap.set(uKey, n);
-    } else {
-        // すでに存在する場合、より新しい方（または未読の方）を優先するなどの処理も可能
     }
 });
 const finalNotices = Array.from(uniqueMap.values());
@@ -108,8 +106,7 @@ finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds 
 
 const recordDataMap = {};
 if (finalNotices.length > 0) {
-    // 🌟 修正2：通知に関連する「実績」を一括取得（Read数節約）
-    // 顧客名リストを抽出（30件ずつに分割してINクエリ）
+    // 通知に関連する「実績」を一括取得
     const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
     for (let i = 0; i < allCustNames.length; i += 30) {
         const chunk = allCustNames.slice(i, i + 30);
@@ -118,12 +115,20 @@ if (finalNotices.length > 0) {
         
         rSnap.forEach(rd => {
             const d = rd.data();
-            // 通知と紐付けるためのキー（顧客名_日付_訪問者）
-            const key = `${clean(d.customerName)}_${clean(d.visitDate)}_${clean(d.visitorName)}`;
+            // 🌟 重要：通知側と全く同じルールでキーを作る
+            const key = `${clean(d.visitorName)}_${clean(d.customerName)}_${(d.visitDate||"").replace(/[-/]/g,'/')}`;
             recordDataMap[key] = { recordId: rd.id, ...d };
         });
     }
 }
+
+// renderListに渡すデータの準備
+const noticesWithRecordKey = finalNotices.map(n => ({
+    ...n,
+    recordLookupKey: `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`
+}));
+
+renderList(noticesWithRecordKey, recordDataMap);
 
 // 🌟 修正3：通知表示時の紐付けキーを統一
 // renderListに渡す際、個別の通知IDではなく、上記で生成したkeyで引けるように準備
