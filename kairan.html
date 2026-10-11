@@ -122,13 +122,19 @@ if (finalNotices.length > 0) {
     }
 }
 
-// 🌟 修正3：通知表示時の紐付けキーを統一
-const noticesWithRecordKey = finalNotices.map(n => ({
-    ...n,
-    recordLookupKey: `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`
-}));
-                
-renderList(noticesWithRecordKey, recordDataMap);
+                // 🌟 修正3：通知表示時の紐付けキーを統一
+                const noticesWithRecordKey = finalNotices.map(n => ({
+                    ...n,
+                    recordLookupKey: `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`
+                }));
+
+                renderList(noticesWithRecordKey, recordDataMap);
+
+            } catch (e) { 
+                console.error("回覧取得エラー:", e); 
+                container.innerHTML = '<p class="text-center py-20 text-rose-400 font-bold">データの同期に失敗しました</p>';
+            }
+        } // 🌟 ここで init 関数を正しく閉じます
         
         function renderList(notices, recordDataMap) {
             const container = document.getElementById('kairanList');
