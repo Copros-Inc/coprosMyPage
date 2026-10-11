@@ -106,17 +106,16 @@ finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds 
 
 const recordDataMap = {};
 if (finalNotices.length > 0) {
-    // 通知に関連する「実績」を一括取得
     const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
     for (let i = 0; i < allCustNames.length; i += 30) {
         const chunk = allCustNames.slice(i, i + 30);
         const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(100));
-        const rSnap = await getDocs(qr);
+        const rSnap = await getDocs(qr); // 🌟 これが rSnap の定義です！
         
         rSnap.forEach(rd => {
             const d = rd.data();
-            // 🌟 重要：通知側と全く同じルールでキーを作る
-            const key = `${clean(d.visitorName)}_${clean(d.customerName)}_${(d.visitDate||"").replace(/[-/]/g,'/')}`;
+            // 🌟 50回目で解説した統一キー
+            const key = `${clean(myName)}_${clean(d.customerName)}_${(d.visitDate||"").replace(/[-/]/g,'')}`;
             recordDataMap[key] = { recordId: rd.id, ...d };
         });
     }
