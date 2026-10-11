@@ -802,19 +802,23 @@ if (editId) {
         }));
 
         // 2. 回覧通知の作成（自分も含めて全員に送る）
-        if (cNames.length > 0) {
-            await Promise.all(cNames.map(name =>
-                addDoc(collection(db, "notifications"), {
-                    recipient: name,
-                    visitorName: visitor,
-                    customerName: customer,
-                    visitDate: vDate.replace(/-/g, '/'),
-                    isRead: false,
-                    createdAt: serverTimestamp(),
-                    type: "実績回覧"
-                })
-            ));
-        }
+if (cNames.length > 0) {
+    const batch = writeBatch(db);
+    const cleanDate = vDate.replace(/[-/]/g, ''); // 🌟 記号なし
+    for (const name of cNames) {
+        const notiId = `noti_${clean(name)}_${clean(customer)}_${cleanDate}`;
+        batch.set(doc(db, "notifications", notiId), {
+            recipient: name,
+            visitorName: visitor,
+            customerName: customer,
+            visitDate: vDate.replace(/-/g, '/'),
+            isRead: false,
+            createdAt: serverTimestamp(),
+            type: "実績回覧"
+        }, { merge: true });
+    }
+    await batch.commit();
+}
 
         // キャッシュクリア
         const [y, m] = vDate.split('-');
