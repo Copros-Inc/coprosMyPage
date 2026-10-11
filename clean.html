@@ -1,66 +1,122 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>緊急データクリーニング</title></head>
-<body style="font-family:sans-serif; padding:40px; line-height:1.6;">
-    <h1 id="status">データベースを最適化中...</h1>
-    <p>※ブラウザを閉じずに待機してください。</p>
-    <div id="log" style="background:#0f172a; color:#34d399; padding:20px; height:400px; overflow:auto; font-family:monospace; border-radius:10px;"></div>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8"><title>データ整理ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 p-8 text-slate-700">
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-3xl shadow-xl">
+        <h1 class="text-2xl font-black mb-6">🧹 データ整理＆お掃除</h1>
+        
+        <div class="flex gap-4 mb-8 p-6 bg-blue-50 rounded-2xl">
+            <button onclick="startCleanup()" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all">分析を開始する</button>
+            <p class="text-[10px] text-slate-400 self-center leading-relaxed">
+                ①重複（名前・住所・回数・日付が完全一致）の抽出<br>
+                ②社名が英字で始まるデータの抽出
+            </p>
+        </div>
+
+        <div id="status" class="mb-6 font-bold text-blue-600 border-l-4 border-blue-600 pl-4"></div>
+        
+        <div class="space-y-8">
+            <section>
+                <h2 class="font-black text-rose-500 mb-4 flex items-center gap-2"><i class="fa-solid fa-clone"></i> ① 完全重複の疑い</h2>
+                <div id="duplicateResult" class="space-y-3"></div>
+            </section>
+            
+            <section>
+                <h2 class="font-black text-emerald-600 mb-4 flex items-center gap-2"><i class="fa-solid fa-font"></i> ② フリガナを英字に直すべき候補</h2>
+                <div id="alphabetResult" class="space-y-3"></div>
+            </section>
+        </div>
+    </div>
 
     <script type="module">
         import { db } from "./common.js";
-        import { collection, getDocs, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { collection, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        async function emergencyClean() {
-            const logDiv = document.getElementById('log');
-            const statusH1 = document.getElementById('status');
+        const clean = (s) => (s||"").toString().replace(/[\s\u3000]+/g, '').trim();
+
+        window.startCleanup = async () => {
+            const dupRes = document.getElementById('duplicateResult');
+            const alpRes = document.getElementById('alphabetResult');
+            const status = document.getElementById('status');
             
-            try {
-                logDiv.innerHTML += `<div>[INFO] 全顧客データを読み込み中...</div>`;
-                const snap = await getDocs(collection(db, "customers"));
-                
-                let deleteCount = 0;
-                let protectCount = 0;
-                let batch = writeBatch(db);
+            status.innerText = "全データを読み込み中...";
+            const snap = await getDocs(collection(db, "customers"));
+            const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            // 1. 重複チェック（名前・住所・回数・日付）
+            const groups = new Map();
+            // 2. 英字チェック用
+            const alphabetList = [];
 
-                for (const d of snap.docs) {
-                    const data = d.data();
-                    
-                    // 🌟 安全装置：lat(座標)が存在するデータは絶対にスルー（保護）
-                    if (data.lat !== undefined && data.lat !== null) {
-                        protectCount++;
-                        continue; 
-                    }
+            all.forEach(c => {
+                // 重複判定用のキー
+                const key = `${clean(c.name)}_${clean(c.address)}_${c.visitCount}_${c.lastVisitDate}`;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(c);
 
-                    // 🌟 座標がないゴミデータだけをバッチに追加
-                    batch.delete(d.ref);
-                    deleteCount++;
-                    
-                    if (deleteCount % 100 === 0) {
-                        await batch.commit();
-                        batch = writeBatch(db);
-                        logDiv.innerHTML += `<div style="color:#60a5fa;">[EXE] 100件削除実行... (現在:${deleteCount}件)</div>`;
+                // 英字始まり判定（半角A-Z, 全角Ａ-Ｚ）
+                if (c.name && /^[A-Za-zＡ-Ｚ]/.test(c.name)) {
+                    // 現在のフリガナがカタカナ（ア行）なら候補に入れる
+                    if (c.kana && /^[ア-ン]/.test(c.kana)) {
+                        alphabetList.push(c);
                     }
                 }
+            });
 
-                // 残りのバッチを実行
-                if (deleteCount % 100 !== 0) {
-                    await batch.commit();
+            // --- 重複の表示 ---
+            let dupHtml = "";
+            groups.forEach((members) => {
+                if (members.length > 1) {
+                    const keep = members[0];
+                    const deletes = members.slice(1);
+                    dupHtml += `
+                        <div class="p-4 border border-rose-100 rounded-xl bg-rose-50/50 flex justify-between items-center">
+                            <div>
+                                <div class="font-bold text-sm">${keep.name}</div>
+                                <div class="text-[10px] text-slate-400">${keep.address || '住所なし'} | ${keep.visitCount}回</div>
+                            </div>
+                            <button onclick="window.deleteExtra('${deletes.map(d => d.id).join(',')}')" class="bg-rose-500 text-white text-[10px] px-4 py-2 rounded-lg font-bold hover:bg-rose-600">
+                                重複${deletes.length}件を削除
+                            </button>
+                        </div>`;
                 }
+            });
+            dupRes.innerHTML = dupHtml || '<p class="text-xs text-slate-300">重複はありません</p>';
 
-                statusH1.innerText = "最適化が完了しました";
-                logDiv.innerHTML += `<h2 style="color:#fbbf24;">[SUCCESS] クリーニング完了</h2>`;
-                logDiv.innerHTML += `<div>削除したゴミデータ: ${deleteCount} 件</div>`;
-                logDiv.innerHTML += `<div>保護した正常データ: ${protectCount} 件</div>`;
-                logDiv.innerHTML += `<div><b>明日からのRead負荷が大幅に軽減されます。</b></div>`;
-                
-                alert("掃除が完了しました！\n削除: " + deleteCount + " 件\n保護: " + protectCount + " 件");
+            // --- 英字候補の表示 ---
+            let alpHtml = "";
+            alphabetList.forEach(c => {
+                const firstChar = c.name.match(/[A-Za-zＡ-Ｚ]/)[0].toUpperCase(); // 先頭の英字を取得
+                alpHtml += `
+                    <div class="p-4 border border-emerald-100 rounded-xl bg-emerald-50/50 flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-sm">${c.name}</div>
+                            <div class="text-[10px] text-slate-400">現在のフリガナ: ${c.kana} ➔ <span class="text-emerald-600 font-bold">${firstChar}</span> に変更します</div>
+                        </div>
+                        <button onclick="window.fixKana('${c.id}', '${firstChar}')" class="bg-emerald-600 text-white text-[10px] px-4 py-2 rounded-lg font-bold hover:bg-emerald-700">
+                            フリガナを修正
+                        </button>
+                    </div>`;
+            });
+            alpRes.innerHTML = alpHtml || '<p class="text-xs text-slate-300">該当する英字企業はありません</p>';
 
-            } catch (e) {
-                logDiv.innerHTML += `<div style="color:#f87171;">[ERROR] ${e.message}</div>`;
-                alert("エラーが発生しました: " + e.message);
-            }
-        }
-        emergencyClean();
+            status.innerText = `分析完了：重複 ${Array.from(groups.values()).filter(g=>g.length>1).length}件 / 英字候補 ${alphabetList.length}件`;
+        };
+
+        window.deleteExtra = async (ids) => {
+            if (!confirm("完全に削除します。よろしいですか？")) return;
+            for (const id of ids.split(',')) { await deleteDoc(doc(db, "customers", id)); }
+            alert("削除完了"); window.startCleanup();
+        };
+
+        window.fixKana = async (id, newKana) => {
+            await updateDoc(doc(db, "customers", id), { kana: newKana });
+            alert("フリガナを更新しました。これで「他」へ移動します。");
+            window.startCleanup();
+        };
     </script>
 </body>
 </html>
