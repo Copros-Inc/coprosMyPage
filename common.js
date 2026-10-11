@@ -70,15 +70,13 @@ function renderBadge(allUnread) {
             badge.innerHTML = badgeHtml;
             badge.style.display = 'flex';
         } else {
-            badge.style.display = 'none';
+ badge.style.display = 'none';
         }
     }
-}
     // 🌟 callbackがあれば実行し、更新イベントを飛ばす
     if (callback) callback(allUnread);
-// --- 正しい状態 ---
     window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
-}
+} 
 
 // 🌟 ローディング演出の統一
 function unifyLoaders() {
