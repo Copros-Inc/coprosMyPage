@@ -76,8 +76,9 @@ function renderBadge(allUnread) {
 }
     // 🌟 callbackがあれば実行し、更新イベントを飛ばす
     if (callback) callback(allUnread);
-        window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
-} // 🌟ここをスッキリ閉じるだけ！
+// --- 正しい状態 ---
+    window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
+}
 
 // 🌟 ローディング演出の統一
 function unifyLoaders() {
