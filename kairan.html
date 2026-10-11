@@ -349,8 +349,8 @@ window.postComment = async (recordId, customerName, index, noticeId, visitDate) 
         for (const recipient of targetRecipients) {
             // 🌟 予知解決：IDを「受信者_顧客名_日付」で固定する
             // これにより getDocs で探す必要がなくなり、Read数が激減し、かつ重複もしない
-            const cleanDate = visitDate.replace(/[-/]/g, ''); // 🌟 スラッシュとハイフンを完全に消す
-            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`;
+            const cleanDate = (visitDate || "").replace(/[-/]/g, ''); // 🌟 追加
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`; // 🌟 visitDate を cleanDate に変更
             const notiRef = doc(db, "notifications", customNotiId);
             
             batch.set(notiRef, {
