@@ -122,21 +122,12 @@ if (finalNotices.length > 0) {
     }
 }
 
-// renderListに渡すデータの準備
+// 🌟 修正3：通知表示時の紐付けキーを統一
 const noticesWithRecordKey = finalNotices.map(n => ({
     ...n,
     recordLookupKey: `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`
 }));
-
-renderList(noticesWithRecordKey, recordDataMap);
-
-// 🌟 修正3：通知表示時の紐付けキーを統一
-// renderListに渡す際、個別の通知IDではなく、上記で生成したkeyで引けるように準備
-const noticesWithRecordKey = finalNotices.map(n => ({
-    ...n,
-    recordLookupKey: `${clean(n.customerName)}_${clean(n.visitDate)}_${clean(n.visitorName)}`
-}));
-
+                
 renderList(noticesWithRecordKey, recordDataMap);
         
         function renderList(notices, recordDataMap) {
