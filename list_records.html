@@ -191,8 +191,8 @@ window.executeSearch = async (append = false) => {
     const cacheKey = `cp_records_cache_${startD}_${endD}`;
 
    
-     if (!append) {
-        // 🌟 修正：検索窓がすべて空の時だけ、キャッシュ（手元のデータ）を使う
+    if (!append) {
+        // 🌟 ここです！「検索ワードがすべて空」であることを先に確認します
         if (!custK && !visiK && dept === 'ALL') {
             const cached = loadFromCache(cacheKey);
             if (cached) {
@@ -200,12 +200,12 @@ window.executeSearch = async (append = false) => {
                 renderTable(allRecords);
                 document.getElementById('totalDisplay').innerText = allRecords.length;
                 if (moreBtn) moreBtn.classList.remove('hidden'); 
-                return; // ここで終了（Firebase通信 0回）
+                return; // ここで終わる（通信 0）
             }
         }
         
-        // 検索ワードがある場合や、キャッシュがない場合はここを通って Firebase へ
-        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">読み込み中...</td></tr>`;
+        // 🌟 名前が入っている時やキャッシュがない時は、ここを通ってリストをリセットする
+        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを同期中...</td></tr>`;
         lastVisible = null;
         allRecords = [];
     }
