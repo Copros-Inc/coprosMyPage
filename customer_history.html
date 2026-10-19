@@ -187,14 +187,14 @@
             const CACHE_KEY = `cp_history_cache_v2_${cleanName}`;
             const cached = sessionStorage.getItem(CACHE_KEY);
             if (cached) {
-            const records = JSON.parse(cached).filter(r => r.id); // 🌟 IDがあるものだけ残す
-            if (records.length > 0) {
-                renderHistory(records);
-                autoOpenFirst();
-                return;
+                const records = JSON.parse(cached).filter(r => r.id);
+                if (records.length > 0) {
+                    recordImageMap = {}; // 🌟 追加：マップを初期化
+                    renderHistory(records);
+                    autoOpenFirst();
+                    return;
+                }
             }
-       }
-
             if (customerRank || customerAttr) {
                 document.getElementById('customerMetaBadges').classList.remove('hidden');
                 if (customerRank) document.getElementById('badgeRank').innerText = `ランク：${customerRank}`;
@@ -290,41 +290,43 @@ function autoOpenFirst() {
     });
 }
 
-        // =========================================================
-        // 添付画像レンダリング
-        // =========================================================
-        function renderAttachments(attachments, recordIdx) {
-            if (!attachments || !attachments.length) return '';
-            const images = attachments
-                .filter(f => {
-                    const src = f.base64 || f.url || '';
-                    return src && (
-                        (f.type || '').startsWith('image/') ||
-                        src.startsWith('data:image') ||
-                        /\.(jpg|jpeg|png|gif|webp)$/i.test(src)
-                    );
-                })
-                .map(f => ({ src: f.base64 || f.url, name: f.name || '添付画像' }));
-            if (!images.length) return '';
-            recordImageMap[recordIdx] = images;
-            const thumbs = images.map((img, imgIdx) => `
-                <div class="attach-item"
-                     onclick="window.openLightboxFromRecord(${recordIdx}, ${imgIdx})"
-                     title="${img.name}">
-                    <img src="${img.src}" alt="${img.name}" loading="lazy">
-                    <div class="attach-zoom-icon">
-                        <i class="fa-solid fa-magnifying-glass-plus"></i>
-                    </div>
-                </div>`).join('');
-            return `
-                <div class="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                        <i class="fa-solid fa-images mr-1 text-orange-400"></i>
-                        添付画像（${images.length}枚）・クリックで拡大
-                    </p>
-                    <div class="attach-grid">${thumbs}</div>
-                </div>`;
-        }
+function renderAttachments(attachments, recordIdx) {
+    if (!attachments || !attachments.length) return '';
+    const images = attachments
+        .filter(f => {
+            const src = f.base64 || f.url || '';
+            return src && (
+                (f.type || '').startsWith('image/') ||
+                src.startsWith('data:image') ||
+                /\.(jpg|jpeg|png|gif|webp)$/i.test(src)
+            );
+        })
+        .map(f => ({ src: f.base64 || f.url, name: f.name || '添付画像' }));
+    
+    if (!images.length) return '';
+    
+    // 🌟 確実にグローバル変数に保存（ここが重要）
+    recordImageMap[recordIdx] = images;
+
+    const thumbs = images.map((img, imgIdx) => `
+        <div class="attach-item"
+             onclick="window.openLightboxFromRecord(${recordIdx}, ${imgIdx})"
+             title="${img.name}">
+            <img src="${img.src}" alt="${img.name}" loading="lazy">
+            <div class="attach-zoom-icon">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </div>
+        </div>`).join('');
+
+    return `
+        <div class="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                <i class="fa-solid fa-images mr-1 text-orange-400"></i>
+                添付画像（${images.length}枚）・クリックで拡大
+            </p>
+            <div class="attach-grid">${thumbs}</div>
+        </div>`;
+}
 
         function renderHistory(dataList) {
             recordImageMap = {};
