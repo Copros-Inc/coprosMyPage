@@ -109,7 +109,7 @@
                     </table>
                     <div class="flex justify-center pb-10">
     <button id="moreBtn" onclick="window.executeSearch(true)" class="hidden px-20 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-2xl font-black hover:bg-blue-50 transition-all active:scale-95 shadow-md">
-        もっと見る（次の20件）
+        もっと見る（次の50件）
     </button>
                 </div>
             </div>
@@ -173,109 +173,101 @@
             }
         }
        
-        window.executeSearch = async (append = false) => {
-            const tbody = document.getElementById('recordTable');
-            const moreBtn = document.getElementById('moreBtn');
+window.executeSearch = async (append = false) => {
+    const tbody = document.getElementById('recordTable');
+    const moreBtn = document.getElementById('moreBtn');
 
-            // 🌟 予知対策：月間指定を確実に取得
-            const startD = document.getElementById('startDate').value; 
-            const endD   = document.getElementById('endDate').value;
-            if (!startD || !endD) return;
+    const startD = document.getElementById('startDate').value; 
+    const endD   = document.getElementById('endDate').value;
+    if (!startD || !endD) return;
 
-            const cacheKey = `cp_records_cache_${startD}_${endD}`;
+    const cacheKey = `cp_records_cache_${startD}_${endD}`;
 
-            if (!append) {
-                // 🌟 最強の省エネ：キャッシュがあれば即表示（通信 0）
-                const cached = loadFromCache(cacheKey);
-                if (cached) {
-                    allRecords = cached;
-                    window.updateView();
-                    return;
-                }
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを読み込み中...</td></tr>`;
-                lastVisible = null;
-                allRecords = [];
+    // 🌟 修正：最初の読み込み(append=false) かつ キャッシュがある場合のみ即表示
+    if (!append) {
+        const cached = loadFromCache(cacheKey);
+        if (cached) {
+            allRecords = cached;
+            window.updateView();
+            // キャッシュから表示した場合も、続きがあるか判定するために snap 処理へ進ませるか、
+            // もしくはボタンを一旦隠すのが安全です。
+            if (moreBtn) moreBtn.classList.add('hidden'); 
+            return;
+        }
+        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを読み込み中...</td></tr>`;
+        lastVisible = null;
+        allRecords = [];
+    }
+
+    try {
+        const ref = collection(db, "activity_records");
+        const fStart = startD.replace(/-/g, '/');
+        const fEnd   = endD.replace(/-/g, '/');
+        const custK = document.getElementById('filterCustomer').value.trim();
+        const visiK = document.getElementById('filterVisitor').value.trim();
+        const dept  = document.getElementById('deptFilter').value;
+
+        let constraints = [
+            where("visitDate", ">=", fStart),
+            where("visitDate", "<=", fEnd)
+        ];
+
+        // 🌟 省エネ検索条件を追加
+        if (custK) {
+            constraints.push(where("customerName", ">=", custK));
+            constraints.push(where("customerName", "<=", custK + "\uf8ff"));
+        }
+        if (visiK) {
+            constraints.push(where("visitorName", "==", visiK));
+        }
+        if (dept !== 'ALL' && dept !== 'OTHER') {
+            constraints.push(where("visitorDept", "==", dept));
+        }
+
+        constraints.push(orderBy("visitDate", "desc"));
+        constraints.push(limit(50));
+
+        if (append && lastVisible) {
+            constraints.push(startAfter(lastVisible));
+        }
+
+        try {
+            const q = query(ref, ...constraints);
+            const snap = await getDocs(q);
+
+            if (snap.empty && !append) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold">該当する実績はありません</td></tr>`;
+                if (moreBtn) moreBtn.classList.add('hidden');
+                return;
             }
 
-            try {
-                const ref = collection(db, "activity_records");
-                // 🌟 修正：その月の範囲だけをピンポイントで取得（無駄読みをカット）
-                const fStart = startD.replace(/-/g, '/');
-                const fEnd   = endD.replace(/-/g, '/');
-                let constraints = [
-                    where("visitDate", ">=", fStart),
-                    where("visitDate", "<=", fEnd),
-                    orderBy("visitDate", "desc"),
-                    limit(50)
-                ];
+            lastVisible = snap.docs[snap.docs.length - 1];
+            let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            allRecords = append ? [...allRecords, ...newDocs] : newDocs;
 
-                if (append && lastVisible) {
-                    constraints.push(startAfter(lastVisible));
-                }
-
-                const q = query(ref, ...constraints);
-                const snap = await getDocs(q);
-
-                if (snap.empty && !append) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold">この月の実績はありません</td></tr>`;
-                    if (moreBtn) moreBtn.classList.add('hidden');
-                    return;
-                }
-
-                lastVisible = snap.docs[snap.docs.length - 1];
-                let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                allRecords = append ? [...allRecords, ...newDocs] : newDocs;
-
-                // 🌟 取得したデータをキャッシュに保存
+            // キャッシュは「検索条件がない時」だけ保存する（省エネ）
+            if (!custK && !visiK && dept === 'ALL') {
                 saveToCache(cacheKey, allRecords);
-
-                window.updateView();
-                if (moreBtn) {
-                    if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
-                    else moreBtn.classList.add('hidden');
-                }
-            } catch (e) {
-                console.error(e);
-                // 🌟 予知：インデックス未作成の場合のみエラーが出るので案内
-                tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">【設定が必要】F12のコンソールから青いURLをクリックしてインデックスを作成してください</td></tr>`;
             }
+
+            renderTable(allRecords);
+
+            if (moreBtn) {
+                if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
+                else moreBtn.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error(e);
+            // インデックスエラー時はコンソールにURLが出ます
+            tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー（インデックス未作成の可能性があります）</td></tr>`;
+        }
         };
         
         window.updateView = () => {
-            const custK  = document.getElementById('filterCustomer').value.trim();
-            const visiK  = document.getElementById('filterVisitor').value.trim();
-            const startD = document.getElementById('startDate').value;
-            const endD   = document.getElementById('endDate').value;
-            const dept   = document.getElementById('deptFilter').value;
-
-            // 🌟 予知対策：検索中かどうかの判定を最新状態で行う
-            const isSearchingNow = !!(custK || visiK || startD || endD || dept !== 'ALL');
-
-            let filtered = allRecords.filter(r => {
-                const rDate = normalizeDate(r.visitDate); // ここで共通関数を使用
-                const mCust = !custK || (r.customerName || "").includes(custK);
-                const mVisi = !visiK || (r.visitorName || "").includes(visiK);
-                const mDept = (dept === 'ALL') ? true : 
-                              (dept === 'OTHER') ? !TARGET_DEPTS.includes(r.visitorDept) : 
-                              r.visitorDept === dept;
-                const mStart = (startD === "" || rDate >= startD);
-                const mEnd   = (endD === ""   || rDate <= endD);
-                return mCust && mVisi && mDept && mStart && mEnd;
-            });
-
-            // 🌟 並び替え：常に「訪問日時の新しい順（近日順）」
-            filtered.sort((a, b) => {
-                const dateA = a.visitDate || "";
-                const dateB = b.visitDate || "";
-                if (dateA === dateB) {
-                    return (b.startTime || "00:00").localeCompare(a.startTime || "00:00");
-                }
-                return dateB.localeCompare(dateA); 
-            });
-
-            renderTable(filtered);
-        };
-        
+    // 🌟 詳細検索ボタンが押されたら、条件を含めてサーバーから読み直す
+    window.executeSearch(false);
+};
+                  
         function renderTable(dataList) {
             const tbody = document.getElementById('recordTable');
             if (dataList.length === 0) {
