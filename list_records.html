@@ -180,16 +180,18 @@ window.executeSearch = async (append = false) => {
 
     const startD = document.getElementById('startDate').value; 
     const endD   = document.getElementById('endDate').value;
-    if (!startD || !endD) return;
-
-    const cacheKey = `cp_records_cache_${startD}_${endD}`;
-
-    if (!append) {
+   
         // 🌟 検索条件を取得（ここへ移動させます）
         const custK = document.getElementById('filterCustomer').value.trim();
         const visiK = document.getElementById('filterVisitor').value.trim();
         const dept  = document.getElementById('deptFilter').value;
+    
+    if (!startD || !endD) return;
 
+    const cacheKey = `cp_records_cache_${startD}_${endD}`;
+
+   
+     if (!append) {
         // 🌟 修正：検索窓がすべて空の時だけ、キャッシュ（手元のデータ）を使う
         if (!custK && !visiK && dept === 'ALL') {
             const cached = loadFromCache(cacheKey);
