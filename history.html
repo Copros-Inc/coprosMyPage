@@ -395,7 +395,10 @@ if (targetId) {
   　　  document.getElementById('endTime').value = endTime;
 　　　　}
         
-        document.getElementById('visitorName').value = d.visitorName || '';
+        // 🌟 修正：編集の時は元の名前、複写（新規）の時はログイン者の名前を維持
+if (editId) {
+    document.getElementById('visitorName').value = d.visitorName || '';
+}
         document.getElementById('companionDisplay').value = d.companion || '';
         document.getElementById('mainCustomerStaffInput').value = d.customerStaffName || '';
         document.getElementById('nextVisitDate').value = d.nextVisitDate ? d.nextVisitDate.replace(/\//g, '-') : '';
@@ -502,54 +505,36 @@ function setupCustomerSearch() {
                     const val = input.value.trim();
                     if (val.length < 1) { box.style.display = 'none'; return; }
 
-                    // 🌟 1. まず手元のキャッシュから部分一致で探す（省エネ・爆速）
-                    let docs = customerSearchCache.filter(d => d.name.includes(val));
+                    // 🌟 修正：確実に候補を出すため Firebase に直接問い合わせる形に戻す
+                    const ref = collection(db, "customers");
+                    const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
+                    const snap = await getDocs(q);
+                    let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                    // 🌟 2. キャッシュにない場合のみFirebaseへ問い合わせ
-                    if (docs.length === 0) {
-                        const ref = collection(db, "customers");
-                        const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
-                        const snap = await getDocs(q);
-                        const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-                        // 重複を避けてキャッシュに保存
-                        const existingIds = new Set(customerSearchCache.map(d => d.id));
-                        newDocs.forEach(d => {
-                            if (!existingIds.has(d.id)) customerSearchCache.push(d);
-                        });
-
-                        // バックアップ検索（前方一致で出なかった場合）
-                        docs = customerSearchCache.filter(d => d.name.includes(val));
-                        if (docs.length === 0 && val.length >= 2) {
-                            const q2 = query(ref, limit(100)); // サーバー負荷軽減のため件数を少し絞る
-                            const snap2 = await getDocs(q2);
-                            const backupDocs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-                            backupDocs.forEach(d => {
-                                if (!existingIds.has(d.id)) customerSearchCache.push(d);
-                            });
-                            docs = customerSearchCache.filter(d => d.name.includes(val));
-                        }
+                    // 前方一致で見つからない場合のバックアップ検索
+                    if (docs.length === 0 && val.length >= 2) {
+                        const q2 = query(ref, limit(100));
+                        const snap2 = await getDocs(q2);
+                        docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.name.includes(val));
                     }
 
-                    // 🌟 3. 表示処理（デザイン・動きは一切変えません）
+                    // 以前と同じ表示処理
                     if (docs.length === 0) {
-                        box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。名前を正確に入力するか新規登録してください。</div>';
+                        box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
                     } else {
                         box.innerHTML = docs.map(d => `
                             <div class="suggestion-item" 
-                                 data-rank="${d.rank || '--'}" 
-                                 data-type="${d.type || '--'}"
                                  onclick="window.selectCustomer('${d.name}', '${d.rank || '--'}', '${d.type || '--'}')">
                                 <div class="flex justify-between items-center">
                                     <span class="font-black text-slate-700">${d.name}</span>
                                     <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
                                 </div>
-                                <div class="text-[9px] text-slate-400 truncate">${d.address || ''}</div>
                             </div>`).join('');
                     }
                     box.style.display = 'block';
                 }, 300);
 
+                
             // 🌟 選択時の処理を関数化
             window.selectCustomer = (name, rank, type) => {
                 input.value = name;
