@@ -217,22 +217,17 @@ window.executeSearch = async (append = false) => {
         const fStart = startD.replace(/-/g, '/');
         const fEnd   = endD.replace(/-/g, '/');
        
+        // 🌟 修正：基本の検索条件（日付順）
         let constraints = [
             where("visitDate", ">=", fStart),
-            where("visitDate", "<=", fEnd)
+            where("visitDate", "<=", fEnd),
+            orderBy("visitDate", "desc")
         ];
 
-        if (custK) {
-            constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + "\uf8ff"));
-        }
-        if (visiK) {
-            constraints.push(where("visitorName", "==", visiK));
-        }
-        if (dept !== 'ALL' && dept !== 'OTHER') {
-            constraints.push(where("visitorDept", "==", dept));
-        }
+        // 🌟 省エネ対策：検索時は一度に150件、通常時は50件ずつ取得
+        const isFiltering = (custK || visiK || (dept !== 'ALL' && dept !== 'OTHER'));
+        constraints.push(limit(isFiltering ? 150 : 50)); 
 
-        constraints.push(orderBy("visitDate", "desc"), limit(50));
         if (append && lastVisible) {
             constraints.push(startAfter(lastVisible));
         }
@@ -240,15 +235,23 @@ window.executeSearch = async (append = false) => {
         const q = query(ref, ...constraints);
         const snap = await getDocs(q);
 
-        if (snap.empty && !append) {
-            tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold">該当する実績はありません</td></tr>`;
-            if (moreBtn) moreBtn.classList.add('hidden');
-            return;
-        }
+        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        lastVisible = snap.docs[snap.docs.length - 1];
-        let newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        allRecords = append ? [...allRecords, ...newDocs] : newDocs;
+        // 🌟 修正：お客様名・訪問者名の両方を「一文字（部分一致）」で絞り込む
+        if (isFiltering) {
+            docs = docs.filter(r => {
+                // お客様名：入力した文字が含まれているか
+                const matchCust = !custK || (r.customerName || "").includes(custK);
+                // 訪問者名：入力した文字（苗字など）が含まれているか
+                const matchVisi = !visiK || (r.visitorName || "").includes(visiK);
+                // 部署：一致しているか
+                const matchDept = (dept === 'ALL' || dept === 'OTHER') ? true : (r.visitorDept === dept);
+                
+                return matchCust && matchVisi && matchDept;
+            });
+        }
+        
+        allRecords = append ? [...allRecords, ...docs] : docs;
 
         if (!custK && !visiK && dept === 'ALL') {
             saveToCache(cacheKey, allRecords);
