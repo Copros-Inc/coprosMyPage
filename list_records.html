@@ -190,7 +190,7 @@ window.executeSearch = async (append = false) => {
             allRecords = cached;
             renderTable(allRecords);
             document.getElementById('totalDisplay').innerText = allRecords.length;
-            if (moreBtn) moreBtn.classList.add('hidden'); 
+            if (moreBtn) moreBtn.classList.remove('hidden'); 
             return;
         }
         tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを読み込み中...</td></tr>`;
@@ -254,9 +254,11 @@ window.executeSearch = async (append = false) => {
 
             if (moreBtn) {
                 // 50件取れたら「次」がある可能性があるのでボタンを出し、それ以外は隠す
-                if (snap.docs.length === 50) moreBtn.classList.remove('hidden');
-                else moreBtn.classList.add('hidden');
-            }
+                if (snap.docs.length > 0) {
+                    moreBtn.classList.remove('hidden'); // 🌟 データがあれば出す
+               } else {
+                    moreBtn.classList.add('hidden');    // 🌟 空っぽ（最後）なら隠す
+               }
         } catch (e) {
             console.error(e);
             tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
