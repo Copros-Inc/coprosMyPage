@@ -185,15 +185,25 @@ window.executeSearch = async (append = false) => {
     const cacheKey = `cp_records_cache_${startD}_${endD}`;
 
     if (!append) {
-        const cached = loadFromCache(cacheKey);
-        if (cached) {
-            allRecords = cached;
-            renderTable(allRecords);
-            document.getElementById('totalDisplay').innerText = allRecords.length;
-            if (moreBtn) moreBtn.classList.remove('hidden'); 
-            return;
+        // 🌟 検索条件を取得（ここへ移動させます）
+        const custK = document.getElementById('filterCustomer').value.trim();
+        const visiK = document.getElementById('filterVisitor').value.trim();
+        const dept  = document.getElementById('deptFilter').value;
+
+        // 🌟 修正：検索窓がすべて空の時だけ、キャッシュ（手元のデータ）を使う
+        if (!custK && !visiK && dept === 'ALL') {
+            const cached = loadFromCache(cacheKey);
+            if (cached) {
+                allRecords = cached;
+                renderTable(allRecords);
+                document.getElementById('totalDisplay').innerText = allRecords.length;
+                if (moreBtn) moreBtn.classList.remove('hidden'); 
+                return; // ここで終了（Firebase通信 0回）
+            }
         }
-        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">データを読み込み中...</td></tr>`;
+        
+        // 検索ワードがある場合や、キャッシュがない場合はここを通って Firebase へ
+        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 animate-pulse">読み込み中...</td></tr>`;
         lastVisible = null;
         allRecords = [];
     }
@@ -204,10 +214,7 @@ window.executeSearch = async (append = false) => {
         const ref = collection(db, "activity_records");
         const fStart = startD.replace(/-/g, '/');
         const fEnd   = endD.replace(/-/g, '/');
-        const custK = document.getElementById('filterCustomer').value.trim();
-        const visiK = document.getElementById('filterVisitor').value.trim();
-        const dept  = document.getElementById('deptFilter').value;
-
+       
         let constraints = [
             where("visitDate", ">=", fStart),
             where("visitDate", "<=", fEnd)
