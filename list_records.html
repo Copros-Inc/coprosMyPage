@@ -248,24 +248,25 @@ window.executeSearch = async (append = false) => {
             saveToCache(cacheKey, allRecords);
         }
 
-                   // 🌟 ここから修正
+            // 🌟 修正：データの反映と表示
             renderTable(allRecords);
             document.getElementById('totalDisplay').innerText = allRecords.length;
 
             if (moreBtn) {
-                // 50件取れたら「次」がある可能性があるのでボタンを出し、それ以外は隠す
                 if (snap.docs.length > 0) {
-                    moreBtn.classList.remove('hidden'); // 🌟 データがあれば出す
-               } else {
-                    moreBtn.classList.add('hidden');    // 🌟 空っぽ（最後）なら隠す
-               }
+                    moreBtn.classList.remove('hidden');
+                } else {
+                    moreBtn.classList.add('hidden');
+                }
+            } // 🌟 ここが抜けていた閉じ括弧です！
         } catch (e) {
             console.error(e);
             tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
         } finally {
             isSearching = false; // 二重送信防止を解除
         }
-    }; // window.executeSearch の終わり
+    } // 🌟 ここで async 関数内の try ブロック全体を閉じます
+}; // window.executeSearch の終わり
 
 window.updateView = () => {
     window.executeSearch(false);
