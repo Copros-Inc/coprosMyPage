@@ -214,8 +214,7 @@ window.executeSearch = async (append = false) => {
         ];
 
         if (custK) {
-            constraints.push(where("customerName", ">=", custK));
-            constraints.push(where("customerName", "<=", custK + "\uf8ff"));
+            constraints.push(where("customerName", ">=", custK), where("customerName", "<=", custK + "\uf8ff"));
         }
         if (visiK) {
             constraints.push(where("visitorName", "==", visiK));
@@ -224,9 +223,7 @@ window.executeSearch = async (append = false) => {
             constraints.push(where("visitorDept", "==", dept));
         }
 
-        constraints.push(orderBy("visitDate", "desc"));
-        constraints.push(limit(50));
-
+        constraints.push(orderBy("visitDate", "desc"), limit(50));
         if (append && lastVisible) {
             constraints.push(startAfter(lastVisible));
         }
@@ -248,25 +245,25 @@ window.executeSearch = async (append = false) => {
             saveToCache(cacheKey, allRecords);
         }
 
-            // 🌟 修正：データの反映と表示
-            renderTable(allRecords);
-            document.getElementById('totalDisplay').innerText = allRecords.length;
+        // 表示の実行
+        renderTable(allRecords);
+        document.getElementById('totalDisplay').innerText = allRecords.length;
 
-            if (moreBtn) {
-                if (snap.docs.length > 0) {
-                    moreBtn.classList.remove('hidden');
-                } else {
-                    moreBtn.classList.add('hidden');
-                }
-            } // 🌟 ここが抜けていた閉じ括弧です！
-        } catch (e) {
-            console.error(e);
-            tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
-        } finally {
-            isSearching = false; // 二重送信防止を解除
+        // ボタンの制御
+        if (moreBtn) {
+            if (snap.docs.length > 0) {
+                moreBtn.classList.remove('hidden');
+            } else {
+                moreBtn.classList.add('hidden');
+            }
         }
-    } // 🌟 ここで async 関数内の try ブロック全体を閉じます
-}; // window.executeSearch の終わり
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
+    } finally {
+        isSearching = false;
+    }
+};
 
 window.updateView = () => {
     window.executeSearch(false);
