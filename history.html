@@ -378,14 +378,22 @@ if (targetId) {
         document.getElementById('activityType').value = d.activityType || '';
         
         // 🌟 複写の場合は「今日」の日付と現在時刻を優先、修正の場合は元の値をセット
-        if (editId) {
-            document.getElementById('visitDate').value = d.visitDate ? d.visitDate.replace(/\//g, '-') : '';
-            document.getElementById('startTime').value = d.startTime || '';
-            document.getElementById('endTime').value = d.endTime || '';
+        // 日付の処理
+        if (d.visitDate) {
+            document.getElementById('visitDate').value = d.visitDate.replace(/\//g, '-');
         } else {
             document.getElementById('visitDate').valueAsDate = new Date();
-            // 時刻は init の冒頭で設定された現在時刻がそのまま使われます
         }
+
+        // 時刻の処理（編集時も複写時も、元のデータがあればそれを優先）
+　　　　if (d.startTime) document.getElementById('startTime').value = d.startTime;
+　　　　if (d.endTime)   document.getElementById('endTime').value   = d.endTime;
+
+　　　　// 複写かつ日付が空だった場合のみ、現在時刻を補完する（安全策）
+　　　　if (!document.getElementById('startTime').value) {
+  　　  document.getElementById('startTime').value = startTime;
+  　　  document.getElementById('endTime').value = endTime;
+　　　　}
         
         document.getElementById('visitorName').value = d.visitorName || '';
         document.getElementById('companionDisplay').value = d.companion || '';
@@ -478,11 +486,10 @@ if (targetId) {
             }
         };
 
-        // =========================================================
-        // 顧客検索
-        // =========================================================
-        // 🌟 修正：検索ツールの不具合解消（全体検索 & 部分一致 & 爆速表示）
-        function setupCustomerSearch() {
+        // 🌟 検索結果を一時保存するキャッシュ（画面を開いている間有効）
+let customerSearchCache = [];
+
+function setupCustomerSearch() {
             const input = document.getElementById('customerSearch');
             const box   = document.getElementById('customerSuggestions');
 
@@ -492,24 +499,39 @@ if (targetId) {
                 if (val.length < 1) { box.style.display = 'none'; return; }
 
                 searchDebounceTimer = setTimeout(async () => {
-                    // 🌟 1. サーバーから前方一致で少し多めに取得（省エネしつつ範囲を広げる）
-                    const ref = collection(db, "customers");
-                    const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
-                    const snap = await getDocs(q);
-                    
-                    let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const val = input.value.trim();
+                    if (val.length < 1) { box.style.display = 'none'; return; }
 
-                    // 🌟 2. サーバーで漏れた「部分一致」をJS側で補完（爆速フィルタ）
-                    // もし1文字目から探したい場合は、全顧客のキャッシュ（sessionStorage）があればそれを使いますが
-                    // まずはこの「前方一致＋余裕の50件」でほぼ全てのケースをカバーできます。
-                    
-                    if (docs.length === 0 && val.length >= 2) {
-                        // 名前が途中の文字だった場合のバックアップ検索（省エネのため2文字以上で発動）
-                        const q2 = query(ref, limit(200)); 
-                        const snap2 = await getDocs(q2);
-                        docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.name.includes(val));
+                    // 🌟 1. まず手元のキャッシュから部分一致で探す（省エネ・爆速）
+                    let docs = customerSearchCache.filter(d => d.name.includes(val));
+
+                    // 🌟 2. キャッシュにない場合のみFirebaseへ問い合わせ
+                    if (docs.length === 0) {
+                        const ref = collection(db, "customers");
+                        const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
+                        const snap = await getDocs(q);
+                        const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                        // 重複を避けてキャッシュに保存
+                        const existingIds = new Set(customerSearchCache.map(d => d.id));
+                        newDocs.forEach(d => {
+                            if (!existingIds.has(d.id)) customerSearchCache.push(d);
+                        });
+
+                        // バックアップ検索（前方一致で出なかった場合）
+                        docs = customerSearchCache.filter(d => d.name.includes(val));
+                        if (docs.length === 0 && val.length >= 2) {
+                            const q2 = query(ref, limit(100)); // サーバー負荷軽減のため件数を少し絞る
+                            const snap2 = await getDocs(q2);
+                            const backupDocs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+                            backupDocs.forEach(d => {
+                                if (!existingIds.has(d.id)) customerSearchCache.push(d);
+                            });
+                            docs = customerSearchCache.filter(d => d.name.includes(val));
+                        }
                     }
 
+                    // 🌟 3. 表示処理（デザイン・動きは一切変えません）
                     if (docs.length === 0) {
                         box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。名前を正確に入力するか新規登録してください。</div>';
                     } else {
@@ -527,7 +549,6 @@ if (targetId) {
                     }
                     box.style.display = 'block';
                 }, 300);
-            };
 
             // 🌟 選択時の処理を関数化
             window.selectCustomer = (name, rank, type) => {
@@ -695,14 +716,17 @@ if (targetId) {
             setTimeout(() => box.classList.add('hidden'), 4000);
         }
 
-        // ライトボックス（プレビュー用）
-        window.openLightbox = (src) => {
-            document.getElementById('lightboxImg').src = src;
-            document.getElementById('lightbox').classList.add('active');
-        };
-        window.closeLightbox = () => {
-            document.getElementById('lightbox').classList.remove('active');
-        };
+        // スタイルを直接書き換えることで確実に表示させます
+window.openLightbox = (src) => {
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+    img.src = src;
+    lb.style.display = 'flex'; // activeクラスに頼らず直接表示
+};
+
+window.closeLightbox = () => {
+    document.getElementById('lightbox').style.display = 'none';
+};
 
 document.getElementById('submitBtnTop').onclick = async () => {
     const form = document.getElementById('historyForm');
