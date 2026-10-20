@@ -121,7 +121,15 @@ async function init() {
                 const images = (r.attachments || []).map(f => ({ src: f.base64 || f.url, name: f.name }));
                 const typeLabels = { '営業': '営', 'リモート営業': 'リモ', '打合せ(受注後)': '打', '施工': '施', '定期訪問': '定', '電話応対': '電', '来訪対応': '来', '業務日報': '日', 'メディア収集': 'メ', '差別化プレゼンチラシ': '差' };
                 const shortType = typeLabels[r.activityType] || '営';
-                const thumbs = images.map(img => `<div class="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100"><img src="${img.src}" class="w-full h-full object-cover" loading="lazy"></div>`).join('');
+               
+                const thumbs = images.map((img, imgIdx) => `
+                    <div class="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 cursor-pointer hover:scale-105 transition-transform" 
+                         onclick="window.openLightboxFromDaily(${i}, ${imgIdx})">
+                        <img src="${img.src}" class="w-full h-full object-cover" loading="lazy">
+                    </div>`).join('');
+                
+                if (!window.dailyImageMap) window.dailyImageMap = {};
+                window.dailyImageMap[i] = images;
                 
                 // コメント送信先リストの作成
                 const commentators = (r.comments || []).map(c => c.sender);
@@ -471,6 +479,20 @@ window.deleteComment = async (recordId, commentIdx) => {
         }
     } catch (e) { alert("削除エラー: " + e.message); }
 };
+
+        window.openLightboxFromDaily = (recordIdx, imgIdx) => {
+            const images = window.dailyImageMap[recordIdx];
+            if (images && images[imgIdx]) {
+                const lb = document.getElementById('lightbox');
+                const lbImg = document.getElementById('lightboxImg');
+                lbImg.src = images[imgIdx].src;
+                lb.style.display = 'flex'; // 確実に表示
+            }
+        };
+
+        window.closeLightbox = () => {
+            document.getElementById('lightbox').style.display = 'none';
+        };       
         init();
     </script>
       <!-- スタッフモーダル（見た目の部分） -->
@@ -493,5 +515,14 @@ window.deleteComment = async (recordId, commentIdx) => {
             </div>
         </div>
     </div>  
+    <!-- 🌟 追加：ライトボックス本体 -->
+    <div id="lightbox" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(8px);" onclick="window.closeLightbox()">
+        <div style="position: relative; max-width: 95vw; max-height: 95vh;">
+            <div style="position: absolute; top: -40px; right: 0; color: white; font-size: 30px; cursor: pointer;">
+                <i class="fa-solid fa-xmark"></i>
+            </div>
+            <img id="lightboxImg" src="" style="max-width: 95vw; max-height: 85vh; border-radius: 1rem; object-fit: contain; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+        </div>
+    </div>    
 </body>
 </html>
