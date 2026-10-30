@@ -290,33 +290,25 @@ function autoFocus() {
 window.toggleAcc = async (id, visitorName, customerName, date) => {
     const item = document.getElementById(id);
     const content = item.querySelector('.accordion-content');
-    const open = content.style.display === 'block';
-    content.style.display = open ? 'none' : 'block';
-    const chevron = item.querySelector('.fa-chevron-down');
-    if(chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
-
-    // 🌟 デイリーレポート用の自動既読ロジック
-    const badge = item.querySelector('.bg-orange-500');
-    if (!open && badge && badge.innerText.includes("未読")) {
-        // 未読(false)を既読にするため auto=true で呼び出し
-        window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
-    }
-};
-        // 270行目付近の関数定義を以下に修正
-window.toggleAcc = async (id, visitorName, customerName, date) => {
-    const item = document.getElementById(id);
-    const content = item.querySelector('.accordion-content');
     const open = (content.style.display === 'block');
     
     content.style.display = open ? 'none' : 'block';
     const chevron = item.querySelector('.fa-chevron-down');
     if(chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
 
-    // 未読(false)を既読(true)にするための判定
     const badge = item.querySelector('.bg-orange-500');
-    // アコーディオンを開いた(openがfalseからtrueになる)時に実行
     if (!open && badge && badge.innerText.includes("未読")) {
-        window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
+        const [y, m] = date.split(/[-/]/);
+        const cacheKey = `cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`;
+        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || '{}');
+        const noti = (cached.notifications || []).find(n => 
+            clean(n.visitorName) === clean(visitorName) && 
+            (n.visitDate||"").replace(/[-/]/g,'') === date.replace(/[-/]/g,'') && 
+            clean(n.customerName) === clean(customerName)
+        );
+        if (!noti || noti.isRead === false) {
+            window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
+        }
     }
 };
         
