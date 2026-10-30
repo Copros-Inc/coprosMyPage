@@ -166,20 +166,20 @@ window.initMap = async (mode = 'recent') => {
     
     log("データを照合中...");
     const ref = collection(db, "customers");
-    let q;
+    let constraints = [limit(keyword ? 100 : (mode === 'more' ? 300 : 100))];
 
     if (keyword) {
-        // キーワード検索時
-        q = query(ref, where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'), limit(100));
-    } else if (mode === 'recent') {
-        // 🌟爆速ポイント：最新100件を更新日順に取得
-        q = query(ref, orderBy("updatedAt", "desc"), limit(100));
-    } else if (mode === 'more') {
-        // 表示を増やす（簡易的に200件まで拡大）
-        q = query(ref, orderBy("updatedAt", "desc"), limit(300));
+        constraints.push(where("name", ">=", keyword), where("name", "<=", keyword + '\uf8ff'));
+    } else {
+        constraints.push(orderBy("updatedAt", "desc"));
+    }
+    
+    if (type !== 'ALL') {
+        constraints.push(where("type", "==", type));
     }
 
     try {
+        const q = query(ref, ...constraints);
         const snap = await getDocs(q);
         const valid = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.lat && c.lng);
         
@@ -191,7 +191,7 @@ window.initMap = async (mode = 'recent') => {
         }
     } catch (e) { 
         console.error(e); 
-        log("エラー：インデックス作成が必要です", "error");
+        log("インデックス作成が必要です。コンソールを確認してください。");
     }
 };
 
