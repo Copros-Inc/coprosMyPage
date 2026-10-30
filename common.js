@@ -167,18 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="px-6 py-3 flex items-center gap-3 hover:bg-white/5 cursor-pointer item-link mb-4 transition-colors border-l-4 border-transparent" data-page="appoint.html" onclick="location.href='appoint.html'">
                     <i class="fa-solid fa-clock w-5 icon-to-color"></i><span>アポイント</span>
                 </div>
-                <div class="nav-group" data-group="analytics">
+                <div class="nav-group" data-group="analytics" onclick="location.href='maintenance.html'">
                     <div class="group-header flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-white/5 border-t border-gray-800 pt-6 transition-colors">
-                        <div class="flex items-center gap-3"><i class="fa-solid fa-chart-line w-5 icon-to-color"></i><span>集計</span></div>
-                        <i class="fa-solid fa-chevron-down text-[10px] opacity-30 arrow transition-transform duration-300"></i>
+                        <div class="flex items-center gap-3"><i class="fa-solid fa-chart-line w-5 text-rose-400"></i><span class="text-rose-400">集計（整備中）</span></div>
+                        <i class="fa-solid fa-arrow-right text-[10px] opacity-30"></i>
                     </div>
-                    <div class="submenu hidden bg-black/40">
-                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="usage.html" onclick="location.href='usage.html'">社員利用状況</div>
-                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="monthly_list.html" onclick="location.href='monthly_list.html'">月別一覧</div>
-                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="customer_stay_time.html" onclick="location.href='customer_stay_time.html'">お客様別滞在時間</div>
-                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="monthly_stay_time.html" onclick="location.href='monthly_stay_time.html'">月別滞在時間一覧</div>
-                        <div class="sub-item py-2.5 pl-14 pr-4 opacity-70 hover:opacity-100 hover:text-[#87ceeb] cursor-pointer transition-all border-l-4 border-transparent" data-page="view_graph.html" onclick="location.href='view_graph.html'">実績グラフ出力</div>
-                    </div>
+                    <div class="submenu hidden"></div>
                 </div>
                 <div class="nav-group" data-group="master">
                     <div class="group-header flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-white/5 border-t border-gray-800 pt-6 transition-colors">
