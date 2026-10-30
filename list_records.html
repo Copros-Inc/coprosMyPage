@@ -148,14 +148,22 @@
         window.renderMonthPicker = () => {
             const y = currentDisplayDate.getFullYear();
             const m = currentDisplayDate.getMonth() + 1;
-            // 🌟 表示を「2026年 10月」形式に
             document.getElementById('currentMonthDisplay').innerText = `${y}年 ${m}月`;
             
             const lastDay = new Date(y, m, 0).getDate();
-            document.getElementById('startDate').value = `${y}-${String(m).padStart(2,'0')}-01`;
-            document.getElementById('endDate').value = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+            const sVal = `${y}-${String(m).padStart(2,'0')}-01`;
+            const eVal = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+            document.getElementById('startDate').value = sVal;
+            document.getElementById('endDate').value = eVal;
             
-            window.executeSearch(); 
+            // 🌟 修正：キャッシュがある場合のみ自動表示、なければ待機（省エネ）
+            const cacheKey = `cp_records_cache_${sVal}_${eVal}`;
+            if (sessionStorage.getItem(cacheKey)) {
+                window.executeSearch(); 
+            } else {
+                document.getElementById('recordTable').innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-400 font-bold">期間を指定して「検索を実行」を押してください</td></tr>`;
+                document.getElementById('totalDisplay').innerText = 0;
+            }
         };
         
         function loadFromCache(key) {
