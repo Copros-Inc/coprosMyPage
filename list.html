@@ -146,7 +146,7 @@
             } catch (e) { console.error("Master Load Error:", e); }
 
             // 起動スイッチ：最新50件を表示
-            window.executeSearch('all');
+            document.getElementById('customerTable').innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-400 font-bold">検索条件を入力するか、全件表示ボタンを押してください</td></tr>`;
         }
         
 window.executeSearch = async (kana = 'all', append = false) => {
