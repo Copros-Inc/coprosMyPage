@@ -79,62 +79,64 @@
 
             try {
                 await loadStaffs();
-        // 🌟 ご指定の部署リストをセット
-        const depts = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所", "その他の部署"];
-        const deptSelect = document.getElementById('staffDeptFilter');
-        if (deptSelect) {
-            deptSelect.innerHTML = '<option value="ALL">全部署</option>' + 
-                depts.map(d => `<option value="${d}">${d}</option>`).join('');
-        }                
-// 1.  読み込み件数の最適化50件
-const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
-// --- kairan.html init関数内 修正 ---
-const snap = await getDocs(q);
-let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const depts = ["社長", "専務", "ケコム部", "関西支店", "関東支店", "中部営業所", "その他の部署"];
+                const deptSelect = document.getElementById('staffDeptFilter');
+                if (deptSelect) {
+                    deptSelect.innerHTML = '<option value="ALL">全部署</option>' + 
+                        depts.map(d => `<option value="${d}">${d}</option>`).join('');
+                }                
 
-// 🌟 最新の名寄せロジック（キーを完全に一致させる）
-const uniqueMap = new Map();
-notices.forEach(n => {
-    // 訪問者と顧客名、日付からユニークキーを作成（これで重複を排除）
-    const uKey = `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
-    if (!uniqueMap.has(uKey)) {
-        uniqueMap.set(uKey, n);
-    }
-});
-const finalNotices = Array.from(uniqueMap.values());
-finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                // 🌟 読み込み件数を最大50件に制限
+                const q = query(collection(db, "notifications"), where("recipient", "==", myName), limit(50));
+                const snap = await getDocs(q);
+                let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-const recordDataMap = {};
-    if (finalNotices.length > 0) {
-        const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
-        for (let i = 0; i < allCustNames.length; i += 30) {
-            const chunk = allCustNames.slice(i, i + 30);
-            // 日付範囲などは通知に合わせて適宜（ここでは名前で絞って手元で日付照合します）
-            const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(150));
-            const rSnap = await getDocs(qr);
-            
-            rSnap.forEach(rd => {
-                const d = rd.data();
-                // 🌟 修正：名寄せキーを「名前_日付」に統一（myNameは不要です）
-                const dateKey = (d.visitDate || "").replace(/[-/]/g, '');
-                const key = `${clean(d.customerName)}_${dateKey}`;
-                recordDataMap[key] = { recordId: rd.id, ...d };
-            });
-        }
+                // 🌟 名寄せロジック（重複排除）
+                const uniqueMap = new Map();
+                notices.forEach(n => {
+                    const uKey = `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
+                    if (!uniqueMap.has(uKey)) uniqueMap.set(uKey, n);
+                });
+                const finalNotices = Array.from(uniqueMap.values());
+                // 作成日時順に並び替え
+                finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-        const noticesWithRecordKey = finalNotices.map(n => ({
-            ...n,
-            // 🌟 修正：通知側の紐付けキーも「名前_日付」に合わせる
-            recordLookupKey: `${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'')}`
-        }));
+                const recordDataMap = {};
+                if (finalNotices.length > 0) {
+                    // 🌟 関連する顧客名を一括で集める（通信節約）
+                    const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
+                    
+                    // 30件ずつまとめて取得（ループ回数を激減させる）
+                    for (let i = 0; i < allCustNames.length; i += 30) {
+                        const chunk = allCustNames.slice(i, i + 30);
+                        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(150));
+                        const rSnap = await getDocs(qr);
+                        
+                        rSnap.forEach(rd => {
+                            const d = rd.data();
+                            // 紐付けキーの作成（引き継ぎ書どおりのルール）
+                            const dateKey = (d.visitDate || "").replace(/[-/]/g, '');
+                            const key = `${clean(d.customerName)}_${dateKey}`;
+                            recordDataMap[key] = { recordId: rd.id, ...d };
+                        });
+                    }
 
-        renderList(noticesWithRecordKey, recordDataMap);
-    }
+                    // 通知側に紐付け用のキーを付与
+                    const noticesWithRecordKey = finalNotices.map(n => ({
+                        ...n,
+                        recordLookupKey: `${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'')}`
+                    }));
+
+                    // 描画関数へ渡す（既存の表示ロジックをそのまま使用）
+                    renderList(noticesWithRecordKey, recordDataMap);
+                } else {
+                    renderList([], {});
+                }
             } catch (e) { 
                 console.error("回覧取得エラー:", e); 
-                document.getElementById('kairanList').innerHTML = '<p class="text-center py-20 text-rose-400 font-bold">データの同期に失敗しました</p>';
+                container.innerHTML = '<p class="text-center py-20 text-rose-400 font-bold">同期エラーが発生しました。再読み込みしてください。</p>';
             }
-        } // 🌟 ここで init 関数を正しく閉じます
+        }
         
         function renderList(notices, recordDataMap) {
             const container = document.getElementById('kairanList');
