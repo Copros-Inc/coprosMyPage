@@ -769,8 +769,17 @@ if (isNewRecord) {
 }
         const blocks = document.querySelectorAll('.report-block');
         
-       // 🌟 3. 各報告ブロックを保存（新規・編集の自動判定）
-        await Promise.all([...blocks].map(async (b) => {
+        // 🌟 修正：報告内容が空のブロックは保存対象から外す（白紙送信の防止）
+        const validBlocks = [...blocks].filter(b => b.querySelector('.customer-report').value.trim() !== "");
+        
+        if (validBlocks.length === 0) {
+            alert("報告内容（お客様からの情報）を入力してください。");
+            btns.forEach(b => { b.disabled = false; b.innerHTML = '登録を実行'; });
+            return;
+        }
+
+        // 🌟 3. 有効な報告ブロックだけを保存
+        await Promise.all(validBlocks.map(async (b) => {
             const staffName = b.querySelector('.customer-staff-dropdown').value;
             const companion = document.getElementById('companionDisplay').value;
 
@@ -810,24 +819,27 @@ if (editId) {
 }
         }));
 
-        // 2. 回覧通知の作成（自分も含めて全員に送る）
-if (cNames.length > 0) {
-    const batch = writeBatch(db);
-    const cleanDate = vDate.replace(/[-/]/g, ''); // 🌟 記号なし
-    for (const name of cNames) {
-        const notiId = `noti_${clean(name)}_${clean(customer)}_${cleanDate}`;
-        batch.set(doc(db, "notifications", notiId), {
-            recipient: name,
-            visitorName: visitor,
-            customerName: customer,
-            visitDate: vDate.replace(/-/g, '/'),
-            isRead: false,
-            createdAt: serverTimestamp(),
-            type: "実績回覧"
-        }, { merge: true });
-    }
-    await batch.commit();
-}
+        // 2. 回覧通知の作成（自分以外に送ることで書き込み件数を節約）
+        const myName = sessionStorage.getItem('userName');
+        let filteredNames = cNames.filter(name => clean(name) !== clean(myName));
+
+        if (filteredNames.length > 0) {
+            const batch = writeBatch(db);
+            const cleanDate = vDate.replace(/[-/]/g, '');
+            for (const name of filteredNames) {
+                const notiId = `noti_${clean(name)}_${clean(customer)}_${cleanDate}`;
+                batch.set(doc(db, "notifications", notiId), {
+                    recipient: name,
+                    visitorName: visitor,
+                    customerName: customer,
+                    visitDate: vDate.replace(/-/g, '/'),
+                    isRead: false,
+                    createdAt: serverTimestamp(),
+                    type: "実績回覧"
+                }, { merge: true });
+            }
+            await batch.commit();
+        }
 
         // キャッシュクリア
         const [y, m] = vDate.split('-');
