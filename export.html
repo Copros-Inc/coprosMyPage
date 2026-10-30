@@ -213,36 +213,47 @@
             });
         };
 
-        // 🌟 省エネ設計：件数確認は Firestore の課金対象を最小限にする count() を使用
+        // 🌟 修正：連打・自動実行による読み取り爆増を防ぐためのタイマー
+        let updateTimer = null;
+
         window.updateCount = async () => {
-            const btn = document.getElementById('exportBtn');
-            const badge = document.getElementById('matchCount');
-            const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-            const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-            const visitor = document.getElementById('visitorFilter').value;
-            const rank = document.getElementById('rankFilter').value;
-           
-            try {
-                let q = query(
-                    collection(db, "activity_records"),
-                    where("visitDate", ">=", start),
-                    where("visitDate", "<=", end)
-                );
+            // 前回のタイマーをクリア（タイピング中の無駄な通信を防止）
+            if (updateTimer) clearTimeout(updateTimer);
+            
+            updateTimer = setTimeout(async () => {
+                const btn = document.getElementById('exportBtn');
+                const badge = document.getElementById('matchCount');
+                const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+                const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
                 
-                const dept = document.getElementById('deptFilter').value;
-                if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+                if (!start || !end) return; // 日付が空なら何もしない
 
-                if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-                if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+                try {
+                    let q = query(
+                        collection(db, "activity_records"),
+                        where("visitDate", ">=", start),
+                        where("visitDate", "<=", end)
+                    );
+                    
+                    const dept = document.getElementById('deptFilter').value;
+                    const visitor = document.getElementById('visitorFilter').value;
+                    const rank = document.getElementById('rankFilter').value;
 
-                const snap = await getCountFromServer(q);
-                const count = snap.data().count;
-                badge.innerText = count;
-                btn.disabled = (count === 0);
-                badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
-            } catch (e) {
-                console.error(e);
-            }
+                    if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+                    if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+                    if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+
+                    // 🌟 getCountFromServer は 1000件につき1読み取りとしてカウントされるため比較的安価ですが
+                    // 回数を絞ることでさらに節約します。
+                    const snap = await getCountFromServer(q);
+                    const count = snap.data().count;
+                    badge.innerText = count;
+                    btn.disabled = (count === 0);
+                    badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+                } catch (e) {
+                    console.error("Count Error:", e);
+                }
+            }, 500); // 0.5秒間操作が止まったら通信実行
         };
 
 window.executeExport = async () => {
