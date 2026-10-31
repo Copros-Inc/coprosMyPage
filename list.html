@@ -45,7 +45,11 @@
 
             /* 4. テーブルを強制的にカード形式へ */
             .table-container { border: none !important; background: transparent !important; box-shadow: none !important; overflow: visible !important; }
-            table, tbody, tr, td { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+            table, tbody, tr, td { 
+                display: block !important; 
+                width: 100% !important; 
+                box-sizing: border-box !important; /* 🌟 これを追加 */
+            }
             thead { display: none !important; }
 
             tbody tr {
@@ -85,22 +89,18 @@
                 padding: 0 !important;
                 width: 100% !important;
             }
+            /* 履歴・実績ボタンを横に並べる */
             td:nth-child(5) .flex {
                 display: flex !important;
-                flex-direction: row !important; /* 絶対に横並び */
+                flex-direction: row !important; /* 横並びを強制 */
                 gap: 8px !important;
                 width: 100% !important;
             }
-            td:nth-child(5) .flex button {
-                flex: 1 !important; /* 均等に広がる */
-                padding: 12px 0 !important; /* 上下の高さを出す */
+            td:nth-child(5) button {
+                flex: 1 !important; /* 幅を半分ずつ分け合う */
+                padding: 12px 0 !important;
                 font-size: 13px !important;
-                font-weight: 900 !important;
-                border-radius: 10px !important;
-                margin: 0 !important;
-                height: auto !important;
             }
-
             /* 詳細情報の文字サイズアップ */
             td:nth-child(6) { font-size: 15px !important; font-weight: 800; border-top: 1px solid #f8fafc; padding-top: 8px !important; }
             td:nth-child(6):before { content: "📞 "; }
