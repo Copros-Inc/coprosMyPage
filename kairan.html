@@ -61,6 +61,12 @@
             
             /* モーダル */
             .modal-content { max-width: 95vw !important; margin: 10px !important; }
+            .flex.justify-between.items-center.bg-slate-50 { 
+                flex-direction: column !important; 
+                gap: 12px !important; 
+                align-items: flex-start !important;
+                padding: 15px !important; 
+            }        
         }        
     </style>
 </head>
@@ -231,7 +237,8 @@
                         <div><p class="info-label">訪問者の部署</p><p class="info-value">${getDisplayDept(r.visitorDept)}</p></div>
                     </div>
 
- <div class="flex justify-between items-center mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+/* --- 234行目から247行目をこのブロックに差し替え --- */
+<div class="flex justify-between items-center mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
     <div class="text-[10px] font-bold text-slate-400">
         <i class="fa-solid fa-fingerprint mr-1"></i> ID: ${r.recordId || '---'}
     </div>
@@ -245,7 +252,6 @@
         </button>
     </div>
 </div>
-
                     <div class="mb-6">
                         <p class="info-label mb-2 text-[10px] font-black opacity-40 uppercase tracking-widest">定性データ分析</p>
                         <div class="flex flex-wrap gap-2">
