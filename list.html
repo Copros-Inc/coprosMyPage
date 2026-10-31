@@ -15,73 +15,106 @@
         .visit-badge { background-color: #fff7ed; color: #ff7e11; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 900; border: 1px solid #ffedd5; white-space: nowrap; display: inline-block; min-width: 55px; text-align: center; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        /* 📱 モバイル対応：テーブルをカード形式に劇的変換 */
+        /* 📱 モバイル対応：カード形式のバランス最適化版 */
         @media (max-width: 768px) {
-            /* ヘッダー（見出し行）を消す */
-            thead { display: none; }
+            /* 1. 上部ボタンエリアの整列 */
+            .flex.gap-2.bg-white.p-1.5 {
+                flex-direction: row !important;
+                justify-content: space-between;
+                width: 100%;
+                padding: 0.5rem !important;
+            }
+            .flex.gap-2.bg-white.p-1.5 button {
+                flex: 1;
+                padding: 0.8rem 0.2rem !important;
+                font-size: 11px !important;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .flex.gap-2.bg-white.p-1.5 .w-px { display: none; } /* 区切り線を消す */
 
-            /* テーブル本体をブロック要素にする */
+            /* 2. あかさたなツールの横広げ */
+            #syllabaryFilter {
+                width: 100% !important;
+                justify-content: flex-start;
+                padding: 0.8rem !important;
+            }
+            .filter-btn {
+                min-width: 44px;
+                padding: 0.6rem 0.4rem !important;
+                font-size: 0.9rem !important;
+            }
+            /* 50件カウントを小さく */
+            .text-slate-400.font-bold.text-sm {
+                font-size: 10px !important;
+                padding: 0.3rem 0.8rem !important;
+            }
+
+            /* 3. テーブルのカード化と文字サイズ */
+            thead { display: none; }
             .table-container { border: none; background: transparent; box-shadow: none; }
             table, tbody, tr, td { display: block; width: 100%; }
 
-            /* 1行（1社）をカードにする */
             tbody tr {
                 background: white;
-                margin-bottom: 1.2rem;
-                padding: 1.2rem;
+                margin-bottom: 1.5rem;
+                padding: 1.5rem;
                 border-radius: 1.5rem;
                 border: 1px solid #e2e8f0;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.06);
                 position: relative;
             }
 
-            /* 各セルの調整 */
             td {
                 text-align: left !important;
-                padding: 0.4rem 0 !important;
+                padding: 0.5rem 0 !important;
                 border: none !important;
+                font-size: 15px !important; /* 全体的に文字を大きく */
             }
 
-            /* No（番号）を右上に小さく配置 */
-            td:nth-child(1) {
-                position: absolute; top: 1rem; right: 1rem;
-                font-size: 10px; color: #cbd5e1;
-            }
+            /* No（番号）を右上に */
+            td:nth-child(1) { position: absolute; top: 1rem; right: 1rem; font-size: 11px; color: #cbd5e1; }
 
-            /* ランクと属性を横並びに（バッジ風） */
-            td:nth-child(2), td:nth-child(3) {
-                display: inline-block; width: auto; margin-right: 0.5rem;
-            }
+            /* ランクと属性 */
+            td:nth-child(2), td:nth-child(3) { display: inline-block; width: auto; margin-right: 0.5rem; }
 
-            /* お客様名をメインタイトルにする */
+            /* お客様名（ドカンと大きく） */
             td:nth-child(4) {
-                font-size: 1.2rem !important;
-                padding-top: 0.8rem !important;
+                font-size: 1.3rem !important;
+                font-weight: 900 !important;
+                padding: 1rem 0 !important;
                 color: var(--copros-navy);
+                line-height: 1.2;
             }
 
-            /* 履歴・実績ボタンを大きく押しやすく */
+            /* 4. 実績・履歴ボタンの復活と調整 */
             td:nth-child(5) {
-                margin: 1rem 0;
+                margin: 0.5rem 0 1rem 0;
+                padding: 1rem !important;
                 background: #f8fafc;
+                border-radius: 1.2rem;
+            }
+            td:nth-child(5) .flex {
+                display: flex !important;
+                gap: 10px !important;
+                justify-content: center !important;
+            }
+            td:nth-child(5) button {
+                flex: 1;
                 padding: 0.8rem !important;
-                border-radius: 1rem;
-            }
-            td:nth-child(5) .flex { justify-content: space-around; }
-
-            /* 電話、住所、訪問数、最終訪問日をアイコン付き風に整理 */
-            td:nth-child(6):before { content: "📞 "; font-size: 12px; }
-            td:nth-child(7):before { content: "📍 "; font-size: 12px; }
-            td:nth-child(8):before { content: "📊 訪問数: "; font-size: 10px; color: #94a3b8; }
-            td:nth-child(9):before { content: "📅 最終: "; font-size: 10px; color: #94a3b8; }
-
-            /* チェックボックスを右下に配置 */
-            td:nth-child(10) {
-                position: absolute; bottom: 1rem; right: 1rem;
+                font-size: 13px !important;
             }
 
-            h1 { font-size: 1.8rem !important; }
-            .filter-btn { padding: 0.5rem; font-size: 0.8rem; }
+            /* アイコン付き情報の整理 */
+            td:nth-child(6):before { content: "📞 "; }
+            td:nth-child(7):before { content: "📍 "; }
+            td:nth-child(8):before { content: "📊 訪問: "; font-size: 12px; color: #94a3b8; }
+            td:nth-child(9):before { content: "📅 最終: "; font-size: 12px; color: #94a3b8; }
+
+            /* チェックボックス */
+            td:nth-child(10) { position: absolute; bottom: 1.5rem; right: 1.5rem; transform: scale(1.3); }
+
+            h1 { font-size: 2rem !important; }
         }
     </style>
 </head>
