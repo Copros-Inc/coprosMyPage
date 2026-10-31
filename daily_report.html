@@ -162,8 +162,14 @@ async function init() {
                     </div>
 
                     <div class="accordion-content">
+                        ${isRead ? `
                         <div class="flex justify-end mb-4">
-                            ${(isRead && noti) ? `<button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', true, false, 'acc-${i}')" class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white"><i class="fa-solid fa-envelope"></i><span>未読に戻す</span></button>` : ''}
+                            <button onclick="window.toggleReadStatus('${r.visitorName}', '${r.customerName}', '${r.visitDate}', true, false, 'acc-${i}')" 
+                                class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                                <i class="fa-solid fa-envelope"></i>
+                                <span>未読に戻す</span>
+                            </button>
+                        </div>` : ''}
                         </div>
                         
                         <div class="info-grid">
