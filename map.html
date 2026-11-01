@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8"><title>営業マップ | CP My Page</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>営業マップ | CP My Page</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -35,6 +37,66 @@
         .dot { width: 14px; height: 14px; border-radius: 4px; }
 
         #geo-log { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(15, 23, 42, 0.9); color: #fff; padding: 12px 30px; border-radius: 50px; font-size: 12px; font-weight: 800; display: none; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        /* 📱 モバイル完全対応：営業マップ */
+        @media screen and (max-width: 768px) {
+            html, body { overflow-x: hidden !important; width: 100% !important; }
+            main { overflow-x: hidden !important; width: 100% !important; padding: 0 !important; }
+
+            /* タイトルエリアをコンパクトに */
+            .bg-white.px-6.pt-6 { padding: 10px 15px !important; }
+            h1 { font-size: 1.5rem !important; }
+            nav { margin-bottom: 5px !important; }
+
+            /* 地図の高さを広げる */
+            #map { height: calc(100vh - 180px) !important; }
+
+            /* 検索エリアを浮かせる(オーバーレイ) */
+            .search-bar-area {
+                padding: 10px !important;
+                gap: 5px !important;
+                background: rgba(255,255,255,0.9) !important;
+                backdrop-filter: blur(8px);
+                position: relative;
+                z-index: 1000;
+            }
+            .search-wrapper { max-width: none !important; flex: 1.5 !important; }
+            .scope-select { min-width: 0 !important; flex: 1 !important; padding: 8px !important; font-size: 11px !important; }
+            .search-btn { padding: 10px !important; flex: 0.8 !important; font-size: 12px !important; }
+
+            /* マップコントロールを右下に小さくまとめる */
+            .map-control {
+                top: auto !important;
+                bottom: 120px !important; /* 凡例の上 */
+                right: 10px !important;
+                gap: 8px !important;
+            }
+            .text-control-btn {
+                padding: 10px !important;
+                font-size: 0 !important; /* 文字を消してアイコンだけにする */
+                border-radius: 50% !important;
+                width: 44px !important;
+                height: 44px !important;
+                justify-content: center !important;
+            }
+            .text-control-btn i { font-size: 18px !important; margin: 0 !important; }
+
+            /* 凡例を小さく左下に */
+            .map-legend {
+                bottom: 20px !important;
+                left: 10px !important;
+                padding: 8px 12px !important;
+                border-radius: 12px !important;
+            }
+            .legend-item { gap: 6px !important; margin-bottom: 2px !important; }
+            .legend-item span { font-size: 9px !important; }
+
+            /* ポップアップ内のボタンを大きく(親指サイズ) */
+            .leaflet-popup-content .grid-cols-2 { gap: 8px !important; }
+            .leaflet-popup-content a, .leaflet-popup-content button {
+                padding: 12px 5px !important;
+                font-size: 12px !important;
+            }
+        }   
     </style>
 </head>
 <body class="flex h-screen overflow-hidden text-slate-700 font-sans">
