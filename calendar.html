@@ -35,36 +35,51 @@
         .event-label:hover { transform: translateY(-1px); filter: brightness(0.95); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         /* 今日の日付を強調 */
         .is-today .day-num { transform: scale(1.1); box-shadow: 0 2px 8px rgba(255,126,17,0.4); }
-        /* 📱 モバイル完全対応：カレンダーカード形式（横揺れ完全防止＋デザイン完成版） */
         @media screen and (max-width: 768px) {
-            /* 1. 物理的に横揺れを止める */
+            /* 1. 物理的に横揺れを止める（最強設定） */
             html, body { overflow-x: hidden !important; width: 100% !important; position: relative; }
-            main { overflow-x: hidden !important; width: 100% !important; padding: 0 !important; }
+            main { overflow-x: hidden !important; width: 100% !important; }
             .max-w-\[1500px\] { width: 100% !important; padding: 10px !important; margin: 0 !important; box-sizing: border-box !important; }
 
-            /* 2. 上部操作エリアの最適化（中身だけスクロールさせて横揺れを防ぐ） */
+            /* 2. ＜ 10月 ＞ エリアの調整 */
+            .flex.items-center.gap-10.bg-white { 
+                gap: 0 !important; 
+                justify-content: space-around !important; 
+                padding: 10px !important; 
+                width: 100% !important;
+            }
+            #displayMonthCenter { font-size: 1.2rem !important; min-width: 140px !important; }
+
+            /* 3. 月ボタンをコンパクトに（1列に収める） */
+            .flex.overflow-x-auto.p-1.bg-white.rounded-2xl {
+                display: grid !important;
+                grid-template-columns: repeat(12, 1fr) !important;
+                gap: 0 !important;
+                padding: 4px 2px !important;
+                overflow: hidden !important; /* 横揺れの原因をカット */
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .month-btn { 
+                min-width: 0 !important; 
+                padding: 10px 0 !important; 
+                font-size: 13px !important; 
+                font-weight: 900 !important;
+            }
+
+            /* 4. フィルターエリア（ここだけはスライド可能） */
             .md\:absolute.md\:right-0 {
                 position: static !important;
                 width: 100% !important;
                 overflow-x: auto !important;
                 display: flex !important;
-                gap: 15px !important;
-                padding: 10px 5px !important;
-                box-sizing: border-box !important;
-                white-space: nowrap !important;
+                padding: 10px 0 !important;
+                gap: 12px !important;
                 -webkit-overflow-scrolling: touch;
             }
-            .flex.overflow-x-auto {
-                width: 100% !important;
-                padding: 5px !important;
-                box-sizing: border-box !important;
-                -webkit-overflow-scrolling: touch;
-            }
-            .month-btn { min-width: 45px !important; flex-shrink: 0 !important; padding: 10px 0 !important; }
 
-            /* 3. カレンダーを縦並びカード形式へ */
+            /* 5. カレンダーを縦並びカード形式へ */
             .calendar-grid { display: block !important; background: transparent !important; border: none !important; width: 100% !important; }
-            
             .calendar-day {
                 display: block !important;
                 width: 100% !important;
@@ -77,11 +92,9 @@
                 box-sizing: border-box !important;
                 box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03) !important;
             }
-
-            /* 他の月の日付はスマホでは隠す（スッキリさせる） */
             .calendar-day.other-month { display: none !important; }
 
-            /* 4. 日付ヘッダー（横長に広げて見やすく） */
+            /* 6. 日付ヘッダー */
             .day-header {
                 display: flex !important;
                 justify-content: space-between !important;
@@ -100,21 +113,19 @@
                 background: #f8fafc;
             }
             .is-today .day-num { background: var(--copros-orange) !important; color: white !important; }
-            
-            /* スマホでも「追加ボタン」を押しやすく再配置 */
             .add-btn { width: 32px !important; height: 32px !important; font-size: 14px !important; }
 
-            /* 5. 予定ラベル（大きくして、中身を折り返して全部見せる） */
+            /* 7. 予定ラベル */
             .event-item { margin-bottom: 8px !important; }
             .event-label { 
                 font-size: 14px !important; 
                 padding: 12px !important; 
                 border-radius: 10px !important; 
-                white-space: normal !important; /* 折り返しを許可 */
+                white-space: normal !important; 
                 word-break: break-all !important;
                 line-height: 1.4 !important;
                 display: block !important;
-                border-left-width: 5px !important; /* 左の線を少し太く */
+                border-left-width: 5px !important;
             }
         }
     </style>
@@ -141,7 +152,6 @@
                 <div class="flex flex-col md:flex-row items-center justify-center w-full relative mb-6 gap-6">
                     <div class="flex items-center gap-10 bg-white py-2 px-10 rounded-2xl shadow-sm border border-slate-200">
                         <button onclick="window.changeMonth(-1)" class="text-slate-300 hover:text-slate-600 transition-colors"><i class="fa-solid fa-chevron-left fa-xl"></i></button>
-                        <button onclick="window.goToday()" class="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-lg hover:bg-slate-200 transition-all text-slate-500">今日</button>
                         <span id="displayMonthCenter" class="text-xl font-black text-slate-700 min-w-[180px] text-center tracking-tighter">----年 --月</span>
                         <button onclick="window.changeMonth(1)" class="text-slate-300 hover:text-slate-600 transition-colors"><i class="fa-solid fa-chevron-right fa-xl"></i></button>
                     </div>
@@ -152,9 +162,14 @@
                         <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="showApp" checked onchange="window.renderCalendar()" class="accent-blue-500"> アポ</label>
                     </div>
                 </div>
-                <div class="flex overflow-x-auto p-1 bg-white rounded-2xl border border-slate-200 shadow-sm whitespace-nowrap custom-scrollbar mb-6">
-                    <script>for(let i=1; i<=12; i++) document.write(`<button onclick="window.jumpMonth(${i})" id="m-btn-${i}" class="month-btn">${i}月</button>`);</script>
-                </div>
+<div class="flex overflow-x-auto p-1 bg-white rounded-2xl border border-slate-200 shadow-sm whitespace-nowrap custom-scrollbar mb-6">
+    <script>
+        for(let i=1; i<=12; i++) {
+            // モバイルでは「月」を隠すために <span> で囲みます
+            document.write(`<button onclick="window.jumpMonth(${i})" id="m-btn-${i}" class="month-btn">${i}<span class="hidden md:inline">月</span></button>`);
+        }
+    </script>
+</div>
                 <div id="calendarGrid" class="calendar-grid shadow-sm"></div>
             </div>
         </div>
