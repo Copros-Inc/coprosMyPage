@@ -45,11 +45,18 @@
             .accordion-header span.text-base { font-size: 13px !important; line-height: 1.3 !important; }
 
             /* 内部コンテンツ：2カラムを1列に */
-            .accordion-content { padding: 15px !important; }
-            .info-grid { grid-template-columns: 1fr !important; gap: 12px !important; padding-bottom: 12px !important; }
+            .accordion-content { 
+                padding: 20px !important; 
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .info-grid { 
+                grid-template-columns: 1fr !important; 
+                gap: 12px !important; 
+                padding: 0 5px 12px 5px !important; /* 左右に5pxの安全余白を追加 */
+            }
             .info-label { margin-bottom: 2px !important; }
             .info-value { font-size: 14px !important; }
-
             /* 複写・修正ボタンを横いっぱいに */
             .flex.justify-between.items-center.bg-slate-50 { flex-direction: column !important; gap: 12px !important; align-items: flex-start !important; padding: 15px !important; }
             .flex.gap-2 { width: 100% !important; display: flex !important; }
