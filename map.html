@@ -96,6 +96,18 @@
                 padding: 12px 5px !important;
                 font-size: 12px !important;
             }
+            /* 🌟 追加：サイドバーを検索バーより確実に手前に持ってくる */
+            #main-sidebar {
+                z-index: 9999 !important; /* 最前面 */
+            }
+            #sidebar-overlay {
+                z-index: 9998 !important; /* サイドバーのすぐ後ろ */
+            }
+            
+            /* ついでにヘッダーも検索バーより上に配置 */
+            header {
+                z-index: 1001 !important;
+            }            
         }   
     </style>
 </head>
