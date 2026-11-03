@@ -102,7 +102,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-import { db, getDisplayDept, TARGET_DEPTS } from "./common.js";
+import { db, getDisplayDept, TARGET_DEPTS, updateBadgeLocally } from "./common.js";
 import { collection, getDocs, getDoc, updateDoc, addDoc, doc, writeBatch, query, where, limit, orderBy, arrayUnion, serverTimestamp } 
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         
@@ -390,7 +390,7 @@ window.toggleReadStatus = async (visitorName, customerName, date, currentStatus,
         if (!snap.empty) {
             // Firestoreを更新（Read 1回 / Write 1回）
             await updateDoc(snap.docs[0].ref, { isRead: !currentStatus });
-
+            updateBadgeLocally(snap.docs[0].id, currentStatus ? 'unread' : 'read');
             // 3. 🌟 カレンダー・サイドバー連動の要（キャッシュの狙い撃ち更新）
             const [y, m] = date.split(/[-/]/);
             const cacheKey = `cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`;
