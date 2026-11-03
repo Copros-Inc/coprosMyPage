@@ -353,18 +353,29 @@
             const isOpen = content.style.display === 'block';
             content.style.display = isOpen ? 'none' : 'block';
             
-            if (!isOpen && !isRead) {
-                try {
-                    await updateDoc(doc(db, "notifications", id), { isRead: true });
-                    updateBadgeLocally(id, 'read');
-                    item.classList.remove('unread');
-                    const label = item.querySelector('.status-txt');
-                    label.innerText = "既読"; 
-                    label.className = "status-txt status-read";
-                    // ▼ カレンダーキャッシュをクリア
-                    clearCalCache(date);
-                } catch (e) { console.error(e); }
-            }
+/* --- kairan.html 359行目付近：toggleKairan の中 --- */
+if (!isOpen && !isRead) {
+    try {
+        await updateDoc(doc(db, "notifications", id), { isRead: true });
+        updateBadgeLocally(id, 'read'); // さっき追加したバッジ引き算
+        
+        item.classList.remove('unread');
+        const label = item.querySelector('.status-txt');
+        label.innerText = "既読"; 
+        label.className = "status-txt status-read";
+
+        // 🌟 追加：中のボタンも「未読に戻す」へ即座に切り替える
+        const btn = item.querySelector('button[onclick*="toggleReadStatus"]');
+        if (btn) {
+            btn.className = "px-5 py-2 rounded-full font-black text-[10px] transition-all border flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white shadow-sm";
+            btn.innerHTML = `<i class="fa-solid fa-envelope"></i><span>未読に戻す</span>`;
+            // ボタンの動作（onclick）も「既読から未読に戻す」用に上書き
+            btn.setAttribute('onclick', `window.toggleReadStatus('${id}', true)`);
+        }
+
+        clearCalCache(date);
+    } catch (e) { console.error(e); }
+}
         };
 
         // ▼ 一括処理
