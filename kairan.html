@@ -111,7 +111,7 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, getDisplayDept } from "./common.js";
+        import { db, getDisplayDept, updateBadgeLocally } from "./common.js";
         import { collection, getDocs, getDoc, updateDoc, doc, writeBatch, query, where, orderBy, limit, arrayUnion, addDoc, serverTimestamp } 
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
        
@@ -356,6 +356,7 @@
             if (!isOpen && !isRead) {
                 try {
                     await updateDoc(doc(db, "notifications", id), { isRead: true });
+                    updateBadgeLocally(id, 'read');
                     item.classList.remove('unread');
                     const label = item.querySelector('.status-txt');
                     label.innerText = "既読"; 
@@ -491,8 +492,14 @@ window.toggleReadStatus = async (id, currentStatus) => {
     if (!confirm(currentStatus ? "未読に戻しますか？" : "既読にしますか？")) return;
     
     try {
-        await updateDoc(doc(db, "notifications", id), { isRead: !currentStatus });
-        Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
+/* --- kairan.html 495行目付近 --- */
+await updateDoc(doc(db, "notifications", id), { isRead: !currentStatus });
+
+// 🌟 以下の1行を追加
+// currentStatusが true（既読）なら、これから未読にするので 'unread'（+1）を指定します
+updateBadgeLocally(id, currentStatus ? 'unread' : 'read');
+
+Object.keys(sessionStorage).forEach(k => { if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k); });
         
         // 🌟 修正：リロード後に自動で開くためのIDを保存
         sessionStorage.setItem('cp_last_opened_kairan', id);
