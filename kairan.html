@@ -99,6 +99,8 @@
                         <button onclick="window.bulkAction('read')" class="px-5 py-2.5 text-slate-500 rounded-xl font-black text-[10px] hover:bg-slate-50 transition-all border border-transparent">一括既読</button>
                         <div class="w-px h-6 bg-slate-100"></div>
                         <button onclick="window.bulkAction('delete')" class="px-5 py-2.5 text-rose-500 rounded-xl font-black text-[10px] hover:bg-rose-50 transition-all">一括削除</button>
+                        <div class="w-px h-6 bg-slate-100"></div>
+                        <button onclick="window.forceResetBadge()" class="px-5 py-2.5 text-blue-600 rounded-xl font-black text-[10px] hover:bg-blue-50 transition-all">通知リセット</button>
                     </div>
                 </div>
 
@@ -400,6 +402,29 @@ if (!isOpen && !isRead) {
             location.reload();
         };
 
+// ▼ 通知リセット（全ての幽霊通知を強制既読化）
+window.forceResetBadge = async () => {
+    if (!confirm("画面に出ていないものを含め、全ての未読通知を既読にします。\\nバッジの数字を「0」にリセットしますか？")) return;
+
+    try {
+        const q = query(collection(db, "notifications"), 
+                        where("recipient", "==", myName), 
+                        where("isRead", "==", false));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const batch = writeBatch(db);
+            snap.forEach(d => batch.update(d.ref, { isRead: true }));
+            await batch.commit();
+        }
+        sessionStorage.removeItem('cp_unread_cache');
+        sessionStorage.removeItem('cp_last_noti_check');
+        alert(`リセット完了！${snap.docs.length}件を処理しました。`);
+        location.reload(); 
+    } catch (e) {
+        alert("エラー: " + e.message);
+    }
+};
+        
         // ▼ 個人履歴へ遷移（省エネ＋既読同期）
         window.goUsage = (name, date, customer) => {
             let m = new Date().getMonth() + 1;
