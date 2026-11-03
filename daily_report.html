@@ -14,15 +14,13 @@
         .accordion-content { display: none; padding: 2rem; background: white; border-top: 1px solid #f1f5f9; }
 /* 既存の .info-grid と .info-value を以下に書き換え */
 .info-grid { 
-    display: flex; 
-    flex-wrap: wrap; 
-    gap: 1.5rem 3rem; /* 上下の間隔 1.5rem, 左右の間隔 3rem */
+    display: grid; 
+    grid-template-columns: 1fr 1fr; /* きっちり2分割にする */
+    gap: 1.5rem 4rem; /* 横の間隔を少し広げて回覧に合わせる */
     border-bottom: 1px solid #f1f5f9; 
     padding-bottom: 1.5rem; 
     margin-bottom: 1.5rem; 
-}
-.info-grid > div {
-    min-width: 160px;
+    max-width: 800px; /* 右側に寄りすぎないよう最大幅を制限 */
 }
 .info-label { font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 4px; }
 .info-value { font-size: 14px; font-weight: 800; color: #475569; } /* 回覧に合わせて13pxから14pxへ */
