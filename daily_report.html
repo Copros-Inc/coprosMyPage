@@ -12,9 +12,20 @@
         .accordion-item { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
         .accordion-header { padding: 1.2rem 2rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between; background: #3c4b5a; color: white; }
         .accordion-content { display: none; padding: 2rem; background: white; border-top: 1px solid #f1f5f9; }
-        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
-        .info-label { font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 4px; }
-        .info-value { font-size: 13px; font-weight: 800; color: #475569; }
+/* 既存の .info-grid と .info-value を以下に書き換え */
+.info-grid { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 1.5rem 3rem; /* 上下の間隔 1.5rem, 左右の間隔 3rem */
+    border-bottom: 1px solid #f1f5f9; 
+    padding-bottom: 1.5rem; 
+    margin-bottom: 1.5rem; 
+}
+.info-grid > div {
+    min-width: 160px;
+}
+.info-label { font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 4px; }
+.info-value { font-size: 14px; font-weight: 800; color: #475569; } /* 回覧に合わせて13pxから14pxへ */
         .report-box { background: #f8fafc; border-radius: 1rem; padding: 1.5rem; border: 1px solid #f1f5f9; font-size: 13px; line-height: 1.7; margin-bottom: 1.5rem; }
         .summary-card { background: linear-gradient(135deg, #004098 0%, #2d3748 100%); color: white; border-radius: 1.5rem; padding: 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; justify-content: center; gap: 6rem; box-shadow: 0 10px 25px -5px rgba(0,64,152,0.3); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -192,26 +203,11 @@ async function init() {
                 
                 if (!window.dailyImageMap) window.dailyImageMap = {};
                 window.dailyImageMap[i] = images;
-                
-                // コメント送信先リストの作成
-                const commentators = (r.comments || []).map(c => c.sender);
+            const targetNum = dateToNum(r.visitDate);
+            const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
+            const isRead = noti ? noti.isRead : true;
 
-                
-                // コメント履歴HTMLの作成（送信者・宛先・日時の完全復元）
-                const commentHtml = (r.comments || []).map(c => `
-                    <div class="p-3 bg-white rounded-xl shadow-sm border border-blue-50 text-left mb-2">
-                        <div class="flex justify-between items-center mb-1 text-[9px]">
-                            <span class="font-black text-blue-600 px-2 py-0.5 bg-blue-50 rounded-full">${c.sender} ➔ ${c.receiver}</span>
-                            <span class="text-slate-400 font-mono">${c.date || ''}</span>
-                        </div>
-                        <p class="text-xs font-bold text-slate-700">${c.text}</p>
-                    </div>
-                `).join('');
-                const targetNum = dateToNum(r.visitDate);
-                const noti = currentNotis.find(n => clean(n.visitorName) === clean(r.visitorName) && dateToNum(n.visitDate) === targetNum && clean(n.customerName) === clean(r.customerName));
-                const isRead = noti ? noti.isRead : true;
-
-                return `
+            return `
                 <div class="accordion-item" id="acc-${i}">
                     <div class="accordion-header" onclick="window.toggleAcc('acc-${i}', '${r.visitorName}', '${r.customerName}', '${r.visitDate}')">
                         <div class="flex items-center gap-4">
@@ -232,16 +228,19 @@ async function init() {
                                 <span>未読に戻す</span>
                             </button>
                         </div>` : ''}
-                        </div>
                         
                         <div class="info-grid">
-                            <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
-                            <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
-                            <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p></div>
-                            <div><p class="info-label">顧客情報</p><p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p></div>
-                            <div><p class="info-label">所属部署</p><p class="info-value text-[11px] uppercase font-bold">${getDisplayDept(r.visitorDept)}</p></div>
-                            <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
-                        </div>
+                        
+    <div><p class="info-label">訪問内容</p><p class="info-value text-[#ff7e11] font-black">${r.activityType || '営業'}</p></div>
+    <div><p class="info-label">お客様担当者</p><p class="info-value">${r.customerStaffName || r.customerStaff || '-'}</p></div>
+    <div><p class="info-label">訪問時間</p><p class="info-value text-blue-600"><i class="fa-regular fa-clock mr-1"></i> ${r.startTime} 〜 ${r.endTime}</p></div>
+    <div>
+        <p class="info-label">顧客情報</p>
+        <p class="info-value"><span class="bg-slate-700 text-white px-2 py-0.5 rounded text-[9px] mr-1">${r.customerRank || '--'}</span><span class="text-orange-600">${r.customerAttr || '--'}</span></p>
+    </div>
+    <div><p class="info-label">所属部署</p><p class="info-value text-[11px] uppercase font-bold">${getDisplayDept(r.visitorDept)}</p></div>
+    <div><p class="info-label">同行者</p><p class="info-value">${r.companion || 'なし'}</p></div>
+</div>
 
 <div class="flex justify-between items-center mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
     <div class="text-[10px] font-bold text-slate-400">
