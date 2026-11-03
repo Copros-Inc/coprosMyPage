@@ -160,31 +160,41 @@
 
                 const recordDataMap = {};
                 if (finalNotices.length > 0) {
-                    // 🌟 関連する顧客名を一括で集める（通信節約）
-                    const allCustNames = [...new Set(finalNotices.map(n => n.customerName).filter(Boolean))];
-                    
-                    // 30件ずつまとめて取得（ループ回数を激減させる）
-                    for (let i = 0; i < allCustNames.length; i += 30) {
-                        const chunk = allCustNames.slice(i, i + 30);
-                        const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(150));
-                        const rSnap = await getDocs(qr);
-                        
-                        rSnap.forEach(rd => {
-                            const d = rd.data();
-                            // 紐付けキーの作成（引き継ぎ書どおりのルール）
-                            const dateKey = (d.visitDate || "").replace(/[-/]/g, '');
-                            const key = `${clean(d.customerName)}_${dateKey}`;
-                            recordDataMap[key] = { recordId: rd.id, ...d };
-                        });
+                    // 🌟 1. IDがあるもの(新)と、名前検索が必要なもの(旧)を抽出
+                    const targetIds = [...new Set(finalNotices.map(n => n.recordId).filter(Boolean))];
+                    const legacyCustNames = [...new Set(finalNotices.filter(n => !n.recordId).map(n => n.customerName).filter(Boolean))];
+
+                    // 🌟 2. IDで一本釣り（新データ用：確実・爆速）
+                    if (targetIds.length > 0) {
+                        for (let i = 0; i < targetIds.length; i += 30) {
+                            const chunk = targetIds.slice(i, i + 30);
+                            const qId = query(collection(db, "activity_records"), where("__name__", "in", chunk));
+                            const idSnap = await getDocs(qId);
+                            idSnap.forEach(rd => { recordDataMap[rd.id] = { recordId: rd.id, ...rd.data() }; });
+                        }
+                    }
+
+                    // 🌟 3. 名前で推測取得（旧データ用：これまで通り）
+                    if (legacyCustNames.length > 0) {
+                        for (let i = 0; i < legacyCustNames.length; i += 30) {
+                            const chunk = legacyCustNames.slice(i, i + 30);
+                            const qr = query(collection(db, "activity_records"), where("customerName", "in", chunk), limit(150));
+                            const rSnap = await getDocs(qr);
+                            rSnap.forEach(rd => {
+                                const d = rd.data();
+                                const dateKey = (d.visitDate || "").replace(/[-/]/g, '');
+                                const key = `${clean(d.customerName)}_${dateKey}`;
+                                if (!recordDataMap[key]) recordDataMap[key] = { recordId: rd.id, ...d };
+                            });
+                        }
                     }
 
                     // 通知側に紐付け用のキーを付与
                     const noticesWithRecordKey = finalNotices.map(n => ({
                         ...n,
-                        recordLookupKey: `${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'')}`
+                        recordLookupKey: n.recordId || `${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'')}`
                     }));
 
-                    // 描画関数へ渡す（既存の表示ロジックをそのまま使用）
                     renderList(noticesWithRecordKey, recordDataMap);
                 } else {
                     renderList([], {});
