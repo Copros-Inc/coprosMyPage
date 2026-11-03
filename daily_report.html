@@ -28,7 +28,12 @@
         @media screen and (max-width: 1024px) {
             html, body { overflow-x: hidden !important; width: 100% !important; }
             main { overflow-x: hidden !important; width: 100% !important; padding: 0 !important; }
-            .max-w-\[1100px\] { width: 100% !important; padding: 10px !important; margin: 0 !important; box-sizing: border-box !important; }
+.max-w-\[1100px\] { 
+    width: 100% !important; 
+    padding: 10px !important; 
+    margin: 0 auto !important; /* 🌟 0 から 0 auto に変更 */
+    box-sizing: border-box !important; 
+}
 
             /* ヘッダー周り */
             h1 { font-size: 1.8rem !important; }
