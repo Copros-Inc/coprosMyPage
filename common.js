@@ -254,3 +254,26 @@ export async function getCoords(address) {
     } catch (e) { console.error("Geocoding Error:", e); }
     return null;
 }
+
+// 🌟 既読・未読操作時に通信せず、メモリ上のバッジ情報を即座に更新する関数
+export function updateBadgeLocally(notiId, action = 'read') {
+    const cached = sessionStorage.getItem('cp_unread_cache');
+    if (!cached) return;
+    try {
+        let list = JSON.parse(cached);
+        if (action === 'read') {
+            // 【既読】リストから今読んだIDを削除（引き算）
+            list = list.filter(n => n.id !== notiId);
+        } else {
+            // 【未読に戻す】リストに情報を復元（足し算）
+            if (!list.find(n => n.id === notiId)) {
+                list.push({ id: notiId, isRead: false, type: "復元データ" });
+            }
+        }
+        // 書き換えたリストをメモリに保存
+        sessionStorage.setItem('cp_unread_cache', JSON.stringify(list));
+        
+        // 🌟 重要：サイドバーの renderBadge 関数は common.js 内にあるので直接呼べます
+        renderBadge(list); 
+    } catch (e) { console.error("Badge Update Error:", e); }
+}
