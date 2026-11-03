@@ -819,7 +819,7 @@ if (editId) {
 }
         }));
 
-        // 2. 回覧通知の作成（自分以外に送ることで書き込み件数を節約）
+        // 🌟 2. 回覧通知の作成（白紙防止・ID紐付け版）
         const myName = sessionStorage.getItem('userName');
         let filteredNames = cNames.filter(name => clean(name) !== clean(myName));
 
@@ -835,7 +835,9 @@ if (editId) {
                     visitDate: vDate.replace(/-/g, '/'),
                     isRead: false,
                     createdAt: serverTimestamp(),
-                    type: "実績回覧"
+                    type: "実績回覧",
+                    // 🌟 根本解決：実績のIDを通知に埋め込む
+                    recordId: editId || "" 
                 }, { merge: true });
             }
             await batch.commit();
