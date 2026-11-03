@@ -35,7 +35,9 @@
         .event-label:hover { transform: translateY(-1px); filter: brightness(0.95); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         /* 今日の日付を強調 */
         .is-today .day-num { transform: scale(1.1); box-shadow: 0 2px 8px rgba(255,126,17,0.4); }
-        @media screen and (max-width: 768px) {
+        .max-w-\[1500px\] { width: 95% !important; max-width: 1500px !important; margin: 0 auto !important; }
+        .calendar-grid { min-width: 0 !important; width: 100% !important; }        
+       @media screen and (max-width: 1024px) {
             /* 1. 物理的に横揺れを止める（最強設定） */
             html, body { overflow-x: hidden !important; width: 100% !important; position: relative; }
             main { overflow-x: hidden !important; width: 100% !important; }
