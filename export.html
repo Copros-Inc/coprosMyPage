@@ -32,6 +32,45 @@
         
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  /* 🔍 お客様名検索の候補リスト用デザイン */
+.suggestion-box {
+    position: absolute;
+    width: 100%;
+    top: 100%;
+    left: 0;
+    z-index: 999; /* 確実に一番上に表示させる */
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    border: 1px solid #e2e8f0;
+    max-height: 250px;
+    overflow-y: auto;
+    display: none; /* 初期状態は非表示 */
+}
+
+.suggestion-item {
+    padding: 0.8rem 1.2rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #f8fafc;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f1f5f9;
+    color: var(--copros-orange);
+}
+
+/* 検索ボックスを囲む relative クラスを維持するため */
+.relative { position: relative; }      
     </style>
 </head>
 <body class="flex h-screen overflow-hidden text-slate-700">
@@ -109,7 +148,8 @@
         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">お客様名（企業名）で絞り込み</label>
         <div class="relative">
             <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
-            <input type="text" id="customerSearch" class="form-input pl-11" placeholder="キーワードを入力..." oninput="window.updateCount()">
+            <input type="text" id="customerSearch" class="form-input pl-11" placeholder="キーワードを入力..." autocomplete="off">
+            <div id="customerSuggestions" class="suggestion-box"></div>
         </div>
     </div>
 </div>
@@ -227,7 +267,7 @@ async function loadAttrOptions() {
             window.updateCount();
         }
 
-let searchDebounceTimer = null;
+let customerCache = null; // 🌟 サーバー負荷を減らすためのキャッシュ
 
 function setupCustomerSearch() {
     const input = document.getElementById('customerSearch');
@@ -240,12 +280,17 @@ function setupCustomerSearch() {
         if (val.length < 1) { box.style.display = 'none'; return; }
 
         searchDebounceTimer = setTimeout(async () => {
-            const ref = collection(db, "customers");
-            const q = query(ref, limit(1000)); 
-            const snap = await getDocs(q);
-            const docs = snap.docs
-                .map(d => ({ id: d.id, ...d.data() }))
-                .filter(d => d.name.includes(val)); 
+            // 🌟 省エネ対策：一度もデータを取っていない時だけサーバーに聞く
+            if (!customerCache) {
+                const ref = collection(db, "customers");
+                const q = query(ref, limit(1000)); 
+                const snap = await getDocs(q);
+                customerCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                console.log("Customer data cached for energy saving.");
+            }
+
+            // 💡 取得済みのリスト（キャッシュ）から検索するので、一瞬で終わります
+            const docs = customerCache.filter(d => d.name.includes(val)); 
 
             if (docs.length === 0) {
                 box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
