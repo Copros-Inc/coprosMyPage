@@ -67,7 +67,7 @@
                                 <input type="date" id="dateEnd" class="form-input" onchange="window.updateCount()">
                             </div>
                         </div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
     <div>
         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">部署</label>
         <select id="deptFilter" class="form-input" onchange="window.updateCount()">
@@ -96,9 +96,23 @@
         </select>
     </div>
 </div>
-                    </div>
-                </div>
 
+<!-- 🌟 追加：2段目にお客様名検索と属性区分を配置 -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div>
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">属性区分</label>
+        <select id="attrFilter" class="form-input" onchange="window.updateCount()">
+            <option value="ALL">読み込み中...</option>
+        </select>
+    </div>
+    <div class="md:col-span-2">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">お客様名（企業名）で絞り込み</label>
+        <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+            <input type="text" id="customerSearch" class="form-input pl-11" placeholder="キーワードを入力..." oninput="window.updateCount()">
+        </div>
+    </div>
+</div>
                 <!-- 2. 出力項目 -->
                 <div class="section-card">
                     <div class="flex justify-between items-center mb-6">
@@ -162,6 +176,24 @@
             { id: "nextVisitDate", label: "次回予定", default: false }
         ];
 
+// マスタ設定から「お客様区分」を読み込み、属性選択プルダウンに反映する
+async function loadAttrOptions() {
+    try {
+        // すでに冒頭で import 済みのはずなので、そのまま doc, getDoc を使います
+        const snap = await getDoc(doc(db, "master_settings", "qual_options"));
+        const attrSelect = document.getElementById('attrFilter');
+        
+        if (snap.exists() && attrSelect) {
+            const d = snap.data();
+            // 「すべての属性」を残し、マスタの custSegments を追加
+            const options = (d.custSegments || []).map(s => `<option value="${s}">${s}</option>`).join('');
+            attrSelect.innerHTML = `<option value="ALL">すべての属性</option>${options}`;
+        }
+    } catch (e) { 
+        console.error("マスタ読み込み失敗:", e); 
+    }
+}
+
         async function init() {
             // 初期期間設定（今月1日〜今日）
             const today = new Date();
@@ -217,7 +249,6 @@
         let updateTimer = null;
 
         window.updateCount = async () => {
-            // 前回のタイマーをクリア（タイピング中の無駄な通信を防止）
             if (updateTimer) clearTimeout(updateTimer);
             
             updateTimer = setTimeout(async () => {
@@ -226,9 +257,10 @@
                 const start = document.getElementById('dateStart').value.replace(/-/g, '/');
                 const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
                 
-                if (!start || !end) return; // 日付が空なら何もしない
+                if (!start || !end) return;
 
                 try {
+                    // 基本クエリ（日付）
                     let q = query(
                         collection(db, "activity_records"),
                         where("visitDate", ">=", start),
@@ -238,22 +270,39 @@
                     const dept = document.getElementById('deptFilter').value;
                     const visitor = document.getElementById('visitorFilter').value;
                     const rank = document.getElementById('rankFilter').value;
+                    const attr = document.getElementById('attrFilter').value;
+                    const searchText = document.getElementById('customerSearch').value.trim();
 
+                    // Firestore側で絞り込める基本条件
                     if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
                     if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
                     if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-                    // 🌟 getCountFromServer は 1000件につき1読み取りとしてカウントされるため比較的安価ですが
-                    // 回数を絞ることでさらに節約します。
-                    const snap = await getCountFromServer(q);
-                    const count = snap.data().count;
+                    let count = 0;
+
+                    // 🌟 属性区分 または お客様名検索 が指定されている場合
+                    if (attr !== 'ALL' || searchText) {
+                        const snap = await getDocs(q);
+                        let docs = snap.docs.map(d => d.data());
+                        
+                        // JS側でさらに絞り込み（爆速フィルタリング）
+                        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+                        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
+                        
+                        count = docs.length;
+                    } else {
+                        // 指定がない場合は getCountFromServer で高速・安価にカウント
+                        const snap = await getCountFromServer(q);
+                        count = snap.data().count;
+                    }
+
                     badge.innerText = count;
                     btn.disabled = (count === 0);
                     badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
                 } catch (e) {
                     console.error("Count Error:", e);
                 }
-            }, 500); // 0.5秒間操作が止まったら通信実行
+            }, 500);
         };
 
 window.executeExport = async () => {
@@ -264,7 +313,10 @@ window.executeExport = async () => {
     const visitor = document.getElementById('visitorFilter').value;
     const rank = document.getElementById('rankFilter').value;
     const dept = document.getElementById('deptFilter').value;
+    const attr = document.getElementById('attrFilter').value;
+    const searchText = document.getElementById('customerSearch').value.trim();
 
+    // 選択された列を取得
     const selectedCols = COLUMNS.filter(c => {
         const input = document.querySelector(`input[value="${c.id}"]`);
         return input && input.checked;
@@ -280,27 +332,40 @@ window.executeExport = async () => {
             where("visitDate", "<=", end)
         );
         
-        // フィルタの追加
         if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
         if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
         if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-        // 🌟 修正：orderBy を外す（インデックスエラーを避けるため。ソートはJS側でやる方が安全）
         const snap = await getDocs(q);
         let docs = snap.docs.map(d => d.data());
+
+        // 🌟 JS側で追加フィルタリング
+        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
 
         if (docs.length === 0) {
             alert("対象データがありません。");
             return;
         }
 
-        // JS側で訪問日順に並び替え（サーバー負荷ゼロ）
-        docs.sort((a, b) => (b.visitDate || "").localeCompare(a.visitDate || ""));
+        // 🌟 ご指定の順序で並び替え（お客様名 > ランク > 属性）
+        docs.sort((a, b) => {
+            const nameA = a.customerName || "";
+            const nameB = b.customerName || "";
+            if (nameA !== nameB) return nameA.localeCompare(nameB, 'ja');
+            
+            const rankA = a.customerRank || "";
+            const rankB = b.customerRank || "";
+            if (rankA !== rankB) return rankA.localeCompare(rankB);
+
+            return (a.customerAttr || "").localeCompare(b.customerAttr || "");
+        });
 
         // CSV生成
         const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
         docs.forEach(data => {
             const row = selectedCols.map(c => {
+                // customerAttr が無い場合に備えて、type も確認するなどの配慮
                 const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
                 return `"${val}"`;
             });
@@ -315,7 +380,7 @@ window.executeExport = async () => {
 
     } catch (e) {
         console.error(e);
-        alert("出力に失敗しました。条件を絞って再度お試しください。");
+        alert("出力に失敗しました。");
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalHTML;
