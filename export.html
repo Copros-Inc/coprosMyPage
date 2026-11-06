@@ -152,9 +152,8 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, getDisplayDept } from "./common.js";
-        import { collection, getDocs, query, where, orderBy, getCountFromServer } 
-            from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+　　　   import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc } 
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         // 実績登録画面のフィールド名と完全に一致させています
         const COLUMNS = [
             { id: "visitDate", label: "訪問日", default: true },
@@ -194,7 +193,12 @@ async function loadAttrOptions() {
     }
 }
 
-        async function init() {
+         async function init() {
+            // 🌟 追加：マスタから属性区分を読み込む
+            loadAttrOptions();
+            // 🌟 追加：お客様名検索（オートコンプリート）の設定
+            setupCustomerSearch();
+
             // 初期期間設定（今月1日〜今日）
             const today = new Date();
             const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -210,7 +214,7 @@ async function loadAttrOptions() {
                 </label>
             `).join('');
 
-            // 訪問者リストの取得（キャッシュ優先を検討しても良いが、ここは常に最新が良い）
+            // 訪問者リストの取得
             try {
                 const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
                 const select = document.getElementById('visitorFilter');
@@ -222,6 +226,52 @@ async function loadAttrOptions() {
 
             window.updateCount();
         }
+
+        // 🌟 追加：実績登録画面と同じような検索候補を表示する仕組み
+        function setupCustomerSearch() {
+            const input = document.getElementById('customerSearch');
+            // 候補を入れる箱をinputの下に作る
+            const box = document.createElement('div');
+            box.className = 'suggestion-box custom-scrollbar';
+            box.style.cssText = 'position:absolute; width:100%; z-index:50; background:white; border-radius:0.75rem; box-shadow:0 10px 25px rgba(0,0,0,0.1); border:1px solid #e2e8f0; max-height:200px; overflow-y:auto; display:none;';
+            input.parentNode.appendChild(box);
+
+            input.oninput = () => {
+                const val = input.value.trim();
+                if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
+
+                clearTimeout(searchDebounceTimer);
+                searchDebounceTimer = setTimeout(async () => {
+                    const ref = collection(db, "customers");
+                    const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(10));
+                    const snap = await getDocs(q);
+                    const docs = snap.docs.map(d => d.data());
+
+                    if (docs.length > 0) {
+                        box.innerHTML = docs.map(d => `
+                            <div style="padding:0.7rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; border-bottom:1px solid #f8fafc;" 
+                                 onclick="window.selectCustomerForCSV('${d.name}')">
+                                <span class="text-slate-700">${d.name}</span>
+                            </div>`).join('');
+                        box.style.display = 'block';
+                    } else {
+                        box.style.display = 'none';
+                    }
+                    window.updateCount();
+                }, 300);
+            };
+
+            window.selectCustomerForCSV = (name) => {
+                input.value = name;
+                box.style.display = 'none';
+                window.updateCount();
+            };
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+            });
+        }
+        let searchDebounceTimer = null;
 
         window.setQuickPeriod = (type) => {
             const today = new Date();
