@@ -227,51 +227,55 @@ async function loadAttrOptions() {
             window.updateCount();
         }
 
-        // 🌟 追加：実績登録画面と同じような検索候補を表示する仕組み
-        function setupCustomerSearch() {
-            const input = document.getElementById('customerSearch');
-            // 候補を入れる箱をinputの下に作る
-            const box = document.createElement('div');
-            box.className = 'suggestion-box custom-scrollbar';
-            box.style.cssText = 'position:absolute; width:100%; z-index:50; background:white; border-radius:0.75rem; box-shadow:0 10px 25px rgba(0,0,0,0.1); border:1px solid #e2e8f0; max-height:200px; overflow-y:auto; display:none;';
-            input.parentNode.appendChild(box);
+let searchDebounceTimer = null;
 
-            input.oninput = () => {
-                const val = input.value.trim();
-                if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
+function setupCustomerSearch() {
+    const input = document.getElementById('customerSearch');
+    const box   = document.getElementById('customerSuggestions');
+    if (!input || !box) return;
 
-                clearTimeout(searchDebounceTimer);
-                searchDebounceTimer = setTimeout(async () => {
-                    const ref = collection(db, "customers");
-                    const q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(10));
-                    const snap = await getDocs(q);
-                    const docs = snap.docs.map(d => d.data());
+    input.oninput = () => {
+        clearTimeout(searchDebounceTimer);
+        const val = input.value.trim();
+        if (val.length < 1) { box.style.display = 'none'; return; }
 
-                    if (docs.length > 0) {
-                        box.innerHTML = docs.map(d => `
-                            <div style="padding:0.7rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; border-bottom:1px solid #f8fafc;" 
-                                 onclick="window.selectCustomerForCSV('${d.name}')">
-                                <span class="text-slate-700">${d.name}</span>
-                            </div>`).join('');
-                        box.style.display = 'block';
-                    } else {
-                        box.style.display = 'none';
-                    }
-                    window.updateCount();
-                }, 300);
-            };
+        searchDebounceTimer = setTimeout(async () => {
+            const ref = collection(db, "customers");
+            const q = query(ref, limit(1000)); 
+            const snap = await getDocs(q);
+            const docs = snap.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(d => d.name.includes(val)); 
 
-            window.selectCustomerForCSV = (name) => {
-                input.value = name;
-                box.style.display = 'none';
-                window.updateCount();
-            };
+            if (docs.length === 0) {
+                box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
+            } else {
+                box.innerHTML = docs.map(d => `
+                    <div class="suggestion-item" 
+                         onclick="window.selectCustomerForCSV('${d.name.replace(/'/g, "\\'")}')">
+                        <div class="flex justify-between items-center">
+                            <span class="font-black text-slate-700">${d.name}</span>
+                            <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
+                        </div>
+                    </div>`).join('');
+            }
+            box.style.display = 'block';
+        }, 300);
+    };
 
-            document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-            });
-        }
-        let searchDebounceTimer = null;
+    window.selectCustomerForCSV = (name) => {
+        input.value = name;
+        box.style.display = 'none';
+        window.updateCount(); 
+    };
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+    });
+}
+
+// 🌟重要：ここで「機能を動かせ」という命令を出します
+setupCustomerSearch();
 
         window.setQuickPeriod = (type) => {
             const today = new Date();
