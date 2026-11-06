@@ -267,37 +267,48 @@ async function loadAttrOptions() {
             window.updateCount();
         }
 
-let customerCache = null; // 🌟 サーバー負荷を減らすためのキャッシュ
+// 🌟 修正ポイント：変数の定義を関数の外に出します
+let customerCache = null; 
+let searchDebounceTimer = null; 
 
 function setupCustomerSearch() {
     const input = document.getElementById('customerSearch');
     const box   = document.getElementById('customerSuggestions');
     if (!input || !box) return;
 
-    input.oninput = () => {
-        clearTimeout(searchDebounceTimer);
+    input.addEventListener('input', () => {
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
         const val = input.value.trim();
-        if (val.length < 1) { box.style.display = 'none'; return; }
+        
+        if (val.length < 1) { 
+            box.style.display = 'none'; 
+            window.updateCount(); // 💡 入力を消した時に件数を再計算
+            return; 
+        }
 
         searchDebounceTimer = setTimeout(async () => {
-            // 🌟 省エネ対策：一度もデータを取っていない時だけサーバーに聞く
+            // 省エネ：キャッシュがなければ取得
             if (!customerCache) {
-                const ref = collection(db, "customers");
-                const q = query(ref, limit(1000)); 
-                const snap = await getDocs(q);
-                customerCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                console.log("Customer data cached for energy saving.");
+                try {
+                    const ref = collection(db, "customers");
+                    const q = query(ref, limit(1000)); 
+                    const snap = await getDocs(q);
+                    customerCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                } catch (e) {
+                    console.error("Master Load Error:", e);
+                    return;
+                }
             }
 
-            // 💡 取得済みのリスト（キャッシュ）から検索するので、一瞬で終わります
-            const docs = customerCache.filter(d => d.name.includes(val)); 
+            // キャッシュから部分一致で検索
+            const docs = customerCache.filter(d => (d.name || "").includes(val)); 
 
             if (docs.length === 0) {
                 box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
             } else {
                 box.innerHTML = docs.map(d => `
                     <div class="suggestion-item" 
-                         onclick="window.selectCustomerForCSV('${d.name.replace(/'/g, "\\'")}')">
+                         onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
                         <div class="flex justify-between items-center">
                             <span class="font-black text-slate-700">${d.name}</span>
                             <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
@@ -305,8 +316,9 @@ function setupCustomerSearch() {
                     </div>`).join('');
             }
             box.style.display = 'block';
+            window.updateCount(); // 💡 文字を打つたびに件数を再計算（省エネ仕様）
         }, 300);
-    };
+    });
 
     window.selectCustomerForCSV = (name) => {
         input.value = name;
@@ -319,7 +331,7 @@ function setupCustomerSearch() {
     });
 }
 
-// 🌟重要：ここで「機能を動かせ」という命令を出します
+// 実行命令
 setupCustomerSearch();
 
         window.setQuickPeriod = (type) => {
