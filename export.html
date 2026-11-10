@@ -234,11 +234,7 @@ async function loadAttrOptions() {
 }
 
          async function init() {
-            // 🌟 追加：マスタから属性区分を読み込む
-            loadAttrOptions();
-            // 🌟 追加：お客様名検索（オートコンプリート）の設定
-            setupCustomerSearch();
-
+           
             // 初期期間設定（今月1日〜今日）
             const today = new Date();
             const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -466,7 +462,7 @@ window.executeExport = async () => {
         btn.innerHTML = originalHTML;
     }
 };
-
+setupCustomerSearch();
         init();
     </script>
 </body>
