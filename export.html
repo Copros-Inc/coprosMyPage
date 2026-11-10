@@ -215,54 +215,49 @@
             { id: "nextVisitDate", label: "次回予定", default: false }
         ];
 
-// マスタ設定から「お客様区分」を読み込み、属性選択プルダウンに反映する
+// マスタ設定から「お客様区分」を読み込む
 async function loadAttrOptions() {
     try {
-        // すでに冒頭で import 済みのはずなので、そのまま doc, getDoc を使います
         const snap = await getDoc(doc(db, "master_settings", "qual_options"));
         const attrSelect = document.getElementById('attrFilter');
-        
         if (snap.exists() && attrSelect) {
             const d = snap.data();
-            // 「すべての属性」を残し、マスタの custSegments を追加
             const options = (d.custSegments || []).map(s => `<option value="${s}">${s}</option>`).join('');
             attrSelect.innerHTML = `<option value="ALL">すべての属性</option>${options}`;
         }
-    } catch (e) { 
-        console.error("マスタ読み込み失敗:", e); 
-    }
+    } catch (e) { console.error("マスタ読み込み失敗:", e); }
 }
 
-         async function init() {
-           
-            // 初期期間設定（今月1日〜今日）
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
+async function init() {
+    await loadAttrOptions(); // ここで呼び出す
+    
+    // 初期期間設定（今月1日〜今日）
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
 
-            // 項目生成
-            const grid = document.getElementById('columnGrid');
-            grid.innerHTML = COLUMNS.map(col => `
-                <label class="checkbox-card ${col.default ? 'active' : ''}">
-                    <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
-                    <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
-                </label>
-            `).join('');
+    // 項目生成
+    const grid = document.getElementById('columnGrid');
+    grid.innerHTML = COLUMNS.map(col => `
+        <label class="checkbox-card ${col.default ? 'active' : ''}">
+            <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
+            <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
+        </label>
+    `).join('');
 
-            // 訪問者リストの取得
-            try {
-                const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
-                const select = document.getElementById('visitorFilter');
-                snap.forEach(d => {
-                    const name = d.data().name;
-                    select.insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
-                });
-            } catch(e) { console.error(e); }
+    // 訪問者リストの取得
+    try {
+        const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
+        const select = document.getElementById('visitorFilter');
+        snap.forEach(d => {
+            const name = d.data().name;
+            select.insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
+        });
+    } catch(e) { console.error(e); }
 
-            window.updateCount();
-        }
-
+    window.updateCount();
+}
 // 状態管理：検索待機用とキャッシュ
 let searchDebounceTimer = null; 
 let updateTimer = null;
