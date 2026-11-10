@@ -192,9 +192,9 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, getDisplayDept } from "./common.js";
-　　　   import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc } 
-        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        // 実績登録画面のフィールド名と完全に一致させています
+　　　  import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc, limit } 
+　　　　from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";m/firebasejs/10.8.0/firebase-firestore.js";
+       
         const COLUMNS = [
             { id: "visitDate", label: "訪問日", default: true },
             { id: "visitorDept", label: "所属部署", default: true },
@@ -267,13 +267,14 @@ async function loadAttrOptions() {
             window.updateCount();
         }
 
-// 🌟 修正ポイント：変数の定義を関数の外に出します
-let customerCache = null; 
+// 状態管理：検索待機用とキャッシュ
 let searchDebounceTimer = null; 
+let updateTimer = null;
+let customerCache = null; 
 
 function setupCustomerSearch() {
     const input = document.getElementById('customerSearch');
-    const box   = document.getElementById('customerSuggestions');
+    const box = document.getElementById('customerSuggestions');
     if (!input || !box) return;
 
     input.addEventListener('input', () => {
@@ -282,41 +283,40 @@ function setupCustomerSearch() {
         
         if (val.length < 1) { 
             box.style.display = 'none'; 
-            window.updateCount(); // 💡 入力を消した時に件数を再計算
+            window.updateCount(); // 消した時に件数を再計算
             return; 
         }
 
         searchDebounceTimer = setTimeout(async () => {
-            // 省エネ：キャッシュがなければ取得
-            if (!customerCache) {
-                try {
-                    const ref = collection(db, "customers");
-                    const q = query(ref, limit(1000)); 
+            try {
+                // キャッシュがなければ1回だけ取得（省エネ）
+                if (!customerCache) {
+                    const q = query(collection(db, "customers"), limit(1000));
                     const snap = await getDocs(q);
                     customerCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                } catch (e) {
-                    console.error("Master Load Error:", e);
-                    return;
                 }
-            }
 
-            // キャッシュから部分一致で検索
-            const docs = customerCache.filter(d => (d.name || "").includes(val)); 
+                // 部分一致検索（爆速フィルタリング）
+                const docs = customerCache.filter(d => (d.name || "").includes(val));
 
-            if (docs.length === 0) {
-                box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
-            } else {
-                box.innerHTML = docs.map(d => `
-                    <div class="suggestion-item" 
-                         onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
-                        <div class="flex justify-between items-center">
-                            <span class="font-black text-slate-700">${d.name}</span>
-                            <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
-                        </div>
-                    </div>`).join('');
+                if (docs.length === 0) {
+                    box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
+                } else {
+                    // 上位30件のみ表示して表示速度を確保
+                    box.innerHTML = docs.slice(0, 30).map(d => `
+                        <div class="suggestion-item" 
+                             onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
+                            <div class="flex justify-between items-center w-full">
+                                <span class="font-black text-slate-700">${d.name}</span>
+                                <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
+                            </div>
+                        </div>`).join('');
+                }
+                box.style.display = 'block';
+                window.updateCount(); 
+            } catch (e) {
+                console.error("Search Error:", e);
             }
-            box.style.display = 'block';
-            window.updateCount(); // 💡 文字を打つたびに件数を再計算（省エネ仕様）
         }, 300);
     });
 
@@ -359,90 +359,74 @@ setupCustomerSearch();
         // 🌟 修正：連打・自動実行による読み取り爆増を防ぐためのタイマー
         let updateTimer = null;
 
-        window.updateCount = async () => {
-            if (updateTimer) clearTimeout(updateTimer);
+window.updateCount = async () => {
+    if (updateTimer) clearTimeout(updateTimer);
+    updateTimer = setTimeout(async () => {
+        const badge = document.getElementById('matchCount');
+        const btn = document.getElementById('exportBtn');
+        const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+        const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+        
+        if (!start || !end) return;
+
+        try {
+            // 基本のクエリ（日付）
+            let q = query(collection(db, "activity_records"),
+                where("visitDate", ">=", start),
+                where("visitDate", "<=", end)
+            );
             
-            updateTimer = setTimeout(async () => {
-                const btn = document.getElementById('exportBtn');
-                const badge = document.getElementById('matchCount');
-                const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-                const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-                
-                if (!start || !end) return;
+            // 部署・訪問者・ランクでFirestore側で一次絞り込み（高速）
+            const dept = document.getElementById('deptFilter').value;
+            const visitor = document.getElementById('visitorFilter').value;
+            const rank = document.getElementById('rankFilter').value;
+            const attr = document.getElementById('attrFilter').value;
+            const searchText = document.getElementById('customerSearch').value.trim();
 
-                try {
-                    // 基本クエリ（日付）
-                    let q = query(
-                        collection(db, "activity_records"),
-                        where("visitDate", ">=", start),
-                        where("visitDate", "<=", end)
-                    );
-                    
-                    const dept = document.getElementById('deptFilter').value;
-                    const visitor = document.getElementById('visitorFilter').value;
-                    const rank = document.getElementById('rankFilter').value;
-                    const attr = document.getElementById('attrFilter').value;
-                    const searchText = document.getElementById('customerSearch').value.trim();
+            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-                    // Firestore側で絞り込める基本条件
-                    if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-                    if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-                    if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+            const snap = await getDocs(q);
+            let docs = snap.docs.map(d => d.data());
 
-                    let count = 0;
+            // メモリ上で残りの条件をフィルタリング（全条件の組み合わせに対応）
+            if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+            if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
+            if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
 
-                    // 🌟 属性区分 または お客様名検索 が指定されている場合
-                    if (attr !== 'ALL' || searchText) {
-                        const snap = await getDocs(q);
-                        let docs = snap.docs.map(d => d.data());
-                        
-                        // JS側でさらに絞り込み（爆速フィルタリング）
-                        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-                        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
-                        
-                        count = docs.length;
-                    } else {
-                        // 指定がない場合は getCountFromServer で高速・安価にカウント
-                        const snap = await getCountFromServer(q);
-                        count = snap.data().count;
-                    }
-
-                    badge.innerText = count;
-                    btn.disabled = (count === 0);
-                    badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
-                } catch (e) {
-                    console.error("Count Error:", e);
-                }
-            }, 500);
-        };
+            const count = docs.length;
+            badge.innerText = count;
+            btn.disabled = (count === 0);
+            badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+        } catch (e) { console.error("Count Error:", e); }
+    }, 500);
+};
 
 window.executeExport = async () => {
     const btn = document.getElementById('exportBtn');
     const originalHTML = btn.innerHTML;
     const start = document.getElementById('dateStart').value.replace(/-/g, '/');
     const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-    const visitor = document.getElementById('visitorFilter').value;
-    const rank = document.getElementById('rankFilter').value;
-    const dept = document.getElementById('deptFilter').value;
-    const attr = document.getElementById('attrFilter').value;
-    const searchText = document.getElementById('customerSearch').value.trim();
-
-    // 選択された列を取得
-    const selectedCols = COLUMNS.filter(c => {
-        const input = document.querySelector(`input[value="${c.id}"]`);
-        return input && input.checked;
-    });
+    
+    const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
 
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
 
     try {
-        let q = query(
-            collection(db, "activity_records"),
+        // updateCountと同じ条件でデータを取得
+        let q = query(collection(db, "activity_records"),
             where("visitDate", ">=", start),
             where("visitDate", "<=", end)
         );
         
+        const dept = document.getElementById('deptFilter').value;
+        const visitor = document.getElementById('visitorFilter').value;
+        const rank = document.getElementById('rankFilter').value;
+        const attr = document.getElementById('attrFilter').value;
+        const searchText = document.getElementById('customerSearch').value.trim();
+
         if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
         if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
         if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
@@ -450,33 +434,23 @@ window.executeExport = async () => {
         const snap = await getDocs(q);
         let docs = snap.docs.map(d => d.data());
 
-        // 🌟 JS側で追加フィルタリング
+        // フィルタ適用
         if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
+        if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
+        if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
 
-        if (docs.length === 0) {
-            alert("対象データがありません。");
-            return;
-        }
+        if (docs.length === 0) { alert("対象データがありません。"); return; }
 
-        // 🌟 ご指定の順序で並び替え（お客様名 > ランク > 属性）
+        // 並び替え：訪問日順 ＞ 部署順 ＞ お客様名順
         docs.sort((a, b) => {
-            const nameA = a.customerName || "";
-            const nameB = b.customerName || "";
-            if (nameA !== nameB) return nameA.localeCompare(nameB, 'ja');
-            
-            const rankA = a.customerRank || "";
-            const rankB = b.customerRank || "";
-            if (rankA !== rankB) return rankA.localeCompare(rankB);
-
-            return (a.customerAttr || "").localeCompare(b.customerAttr || "");
+            if (a.visitDate !== b.visitDate) return a.visitDate.localeCompare(b.visitDate);
+            if (a.visitorDept !== b.visitorDept) return (a.visitorDept || "").localeCompare(b.visitorDept || "", 'ja');
+            return (a.customerName || "").localeCompare(b.customerName || "", 'ja');
         });
 
-        // CSV生成
         const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
         docs.forEach(data => {
             const row = selectedCols.map(c => {
-                // customerAttr が無い場合に備えて、type も確認するなどの配慮
                 const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
                 return `"${val}"`;
             });
@@ -488,9 +462,7 @@ window.executeExport = async () => {
         link.href = URL.createObjectURL(blob);
         link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
         link.click();
-
     } catch (e) {
-        console.error(e);
         alert("出力に失敗しました。");
     } finally {
         btn.disabled = false;
