@@ -779,45 +779,61 @@ if (isNewRecord) {
         }
 
         // 🌟 3. 有効な報告ブロックだけを保存
-        await Promise.all(validBlocks.map(async (b) => {
-            const staffName = b.querySelector('.customer-staff-dropdown').value;
-            const companion = document.getElementById('companionDisplay').value;
+        let finalRecordId = editId || "";
+        
+        // 最初の1件目を代表実績として保存し、IDを確定させる
+        const firstBlock = validBlocks[0];
+        const staffName = firstBlock.querySelector('.customer-staff-dropdown').value;
+        const recordData = {
+            customerName:      customer,
+            matchKey:          matchKey,
+            customerRank:      customerRank,
+            customerAttr:      customerAttr,
+            activityType:      document.getElementById('activityType').value,
+            customerStaffName: staffName,
+            companion:         document.getElementById('companionDisplay').value, 
+            qualData1:         firstBlock.querySelector('.qual-data-1').value,
+            qualData2:         firstBlock.querySelector('.qual-data-2').value,
+            qualData3:         firstBlock.querySelector('.qual-data-3').value,
+            qualFree:          firstBlock.querySelector('.qual-free').value,
+            attachments:       attachments,
+            visitDate:         vDate.replace(/-/g, '/'),
+            visitorName:       visitor,
+            visitorDept:       vDept,
+            startTime:         document.getElementById('startTime').value || "00:00",
+            endTime:           document.getElementById('endTime').value   || "00:00",
+            content:           firstBlock.querySelector('.customer-report').value,
+            nextVisitDate:     (document.getElementById('nextVisitDate').value || "").replace(/-/g, '/'),
+            staffThoughts:     firstBlock.querySelector('.staff-thoughts').value,
+            circularNames:     cNames,
+            updatedAt:         serverTimestamp()
+        };
 
-            const recordData = {
-                customerName:      customer,
-                matchKey:          matchKey,
-                customerRank:      customerRank,
-                customerAttr:      customerAttr,
-                activityType:      document.getElementById('activityType').value,
-                customerStaffName: staffName,
-                companion:         companion, 
-                qualData1:         b.querySelector('.qual-data-1').value,
-                qualData2:         b.querySelector('.qual-data-2').value,
-                qualData3:         b.querySelector('.qual-data-3').value,
-                qualFree:          b.querySelector('.qual-free').value,
-                attachments:       attachments,
-                visitDate:         vDate.replace(/-/g, '/'),
-                visitorName:       visitor,
-                visitorDept:       vDept,
-                startTime:         document.getElementById('startTime').value || "00:00",
-                endTime:           document.getElementById('endTime').value   || "00:00",
-                content:           b.querySelector('.customer-report').value,
-                nextVisitDate:     (document.getElementById('nextVisitDate').value || "").replace(/-/g, '/'),
-                staffThoughts:     b.querySelector('.staff-thoughts').value,
-                circularNames:     cNames,
-                updatedAt:         serverTimestamp()
-            };
+        if (editId) {
+            await setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
+        } else {
+            recordData.createdAt = serverTimestamp();
+            const docRef = await addDoc(collection(db, "activity_records"), recordData);
+            finalRecordId = docRef.id;
+        }
 
-// --- history.html 360行目付近 保存先を修正 ---
-if (editId) {
-    // 既存データの修正
-    await setDoc(doc(db, "activity_records", editId), recordData, { merge: true });
-} else {
-    // 新規登録（複写を含む）
-    recordData.createdAt = serverTimestamp();
-    await addDoc(collection(db, "activity_records"), recordData);
-}
-        }));
+        // 2件目以降の報告があれば別レコードとして追加保存（通知IDには影響させない）
+        if (validBlocks.length > 1) {
+            for (let i = 1; i < validBlocks.length; i++) {
+                const b = validBlocks[i];
+                const extraData = { ...recordData,
+                    customerStaffName: b.querySelector('.customer-staff-dropdown').value,
+                    qualData1: b.querySelector('.qual-data-1').value,
+                    qualData2: b.querySelector('.qual-data-2').value,
+                    qualData3: b.querySelector('.qual-data-3').value,
+                    qualFree:  b.querySelector('.qual-free').value,
+                    content:   b.querySelector('.customer-report').value,
+                    staffThoughts: b.querySelector('.staff-thoughts').value,
+                    createdAt: serverTimestamp()
+                };
+                await addDoc(collection(db, "activity_records"), extraData);
+            }
+        }
 
         // 🌟 2. 回覧通知の作成（白紙防止・ID紐付け版）
         const myName = sessionStorage.getItem('userName');
@@ -828,20 +844,22 @@ if (editId) {
             const cleanDate = vDate.replace(/[-/]/g, '');
             const firstBlockContent = validBlocks[0].querySelector('.customer-report').value;
 
-            for (const name of filteredNames) {
-                const notiId = `noti_${clean(name)}_${clean(customer)}_${cleanDate}`;
-                batch.set(doc(db, "notifications", notiId), {
-                    recipient: name.trim(),
-                    visitorName: visitor,
-                    customerName: customer,
-                    visitDate: vDate.replace(/-/g, '/'),
-                    isRead: false,
-                    createdAt: serverTimestamp(),
-                    type: "実績回覧",
-                    commentText: firstBlockContent, // ★本文を追加
-                    recordId: editId || "" 
-                }, { merge: true });
-            }
+for (const name of filteredNames) {
+    // ★通知IDに実績IDを混ぜることで、同日・同顧客の複写でも上書きされなくなる
+    const notiId = `noti_${clean(name)}_${finalRecordId}`; 
+    
+    batch.set(doc(db, "notifications", notiId), {
+        recipient: name.trim(),
+        visitorName: visitor,
+        customerName: customer,
+        visitDate: vDate.replace(/-/g, '/'),
+        isRead: false,
+        createdAt: serverTimestamp(),
+        type: "実績回覧",
+        commentText: validBlocks[0].querySelector('.customer-report').value, // ★本文を埋め込み(白紙防止)
+        recordId: finalRecordId // ★実績IDを紐付け(ジャンプ用)
+    }, { merge: true });
+}
             await batch.commit();
         }
 
