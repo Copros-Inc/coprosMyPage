@@ -826,17 +826,19 @@ if (editId) {
         if (filteredNames.length > 0) {
             const batch = writeBatch(db);
             const cleanDate = vDate.replace(/[-/]/g, '');
+            const firstBlockContent = validBlocks[0].querySelector('.customer-report').value;
+
             for (const name of filteredNames) {
                 const notiId = `noti_${clean(name)}_${clean(customer)}_${cleanDate}`;
                 batch.set(doc(db, "notifications", notiId), {
-                    recipient: name,
+                    recipient: name.trim(),
                     visitorName: visitor,
                     customerName: customer,
                     visitDate: vDate.replace(/-/g, '/'),
                     isRead: false,
                     createdAt: serverTimestamp(),
                     type: "実績回覧",
-                    // 🌟 根本解決：実績のIDを通知に埋め込む
+                    commentText: firstBlockContent, // ★本文を追加
                     recordId: editId || "" 
                 }, { merge: true });
             }
