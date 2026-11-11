@@ -258,82 +258,61 @@ async function init() {
 
     window.updateCount();
 }
-// 状態管理：検索待機用とキャッシュ
-let searchDebounceTimer = null; 
-let updateTimer = null;
-let customerCache = null; 
+        // 状態管理
+        let searchDebounceTimer = null; 
+        let updateTimer = null;
 
-function setupCustomerSearch() {
-    const input = document.getElementById('customerSearch');
-    const box = document.getElementById('customerSuggestions');
-    if (!input || !box) return;
+        function setupCustomerSearch() {
+            const input = document.getElementById('customerSearch');
+            const box = document.getElementById('customerSuggestions');
+            if (!input || !box) return;
 
-    input.addEventListener('input', () => {
-        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-        const val = input.value.trim();
-        if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
+            input.addEventListener('input', () => {
+                if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+                const val = input.value.trim();
+                if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
 
-        searchDebounceTimer = setTimeout(async () => {
-            try {
-                const ref = collection(db, "customers");
-                let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
-                let snap = await getDocs(q);
-                let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                searchDebounceTimer = setTimeout(async () => {
+                    try {
+                        const ref = collection(db, "customers");
+                        // 🌟 実績登録と同一：全件直接クエリ
+                        let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
+                        let snap = await getDocs(q);
+                        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                if (docs.length === 0 && val.length >= 2) {
-                    const q2 = query(ref, limit(100));
-                    const snap2 = await getDocs(q2);
-                    docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => (d.name || "").includes(val));
-                }
+                        // 🌟 実績登録と同一：部分一致補完
+                        if (docs.length === 0 && val.length >= 2) {
+                            const q2 = query(ref, limit(100));
+                            const snap2 = await getDocs(q2);
+                            docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => (d.name || "").includes(val));
+                        }
 
-                if (docs.length === 0) {
-                    box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
-                } else {
-                    box.innerHTML = docs.map(d => `
-                        <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
-                            <div class="flex justify-between items-center w-full">
-                                <span class="font-black text-slate-700">${d.name}</span>
-                                <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
-                            </div>
-                        </div>`).join('');
-                }
-                box.style.display = 'block';
-            } catch (e) { console.error(e); }
-        }, 300);
-    });
+                        if (docs.length === 0) {
+                            box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
+                        } else {
+                            box.innerHTML = docs.map(d => `
+                                <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
+                                    <div class="flex justify-between items-center w-full">
+                                        <span class="font-black text-slate-700">${d.name}</span>
+                                        <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
+                                    </div>
+                                </div>`).join('');
+                        }
+                        box.style.display = 'block';
+                    } catch (e) { console.error(e); }
+                }, 300);
+            });
 
-    window.selectCustomerForCSV = (name) => {
-        input.value = name;
-        box.style.display = 'none';
-        window.updateCount();
-    };
+            window.selectCustomerForCSV = (name) => {
+                input.value = name;
+                box.style.display = 'none';
+                window.updateCount();
+            };
 
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-    });
-}
-
-    window.selectCustomerForCSV = (name) => {
-        input.value = name;
-        box.style.display = 'none';
-        window.updateCount(); 
-    };
-
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-    });
-}
-
-    window.selectCustomerForCSV = (name) => {
-        input.value = name;
-        box.style.display = 'none';
-        window.updateCount(); 
-    };
-
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-    });
-}
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+            });
+        }
 
         window.setQuickPeriod = (type) => {
             const today = new Date();
@@ -357,119 +336,116 @@ function setupCustomerSearch() {
             });
         };
 
-window.updateCount = async () => {
-    if (updateTimer) clearTimeout(updateTimer);
-    updateTimer = setTimeout(async () => {
-        const badge = document.getElementById('matchCount');
-        const btn = document.getElementById('exportBtn');
-        const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-        const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-        
-        if (!start || !end) return;
+        window.updateCount = async () => {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(async () => {
+                const badge = document.getElementById('matchCount');
+                const btn = document.getElementById('exportBtn');
+                const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+                const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+                if (!start || !end) return;
+                try {
+                    let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+                    const dept = document.getElementById('deptFilter').value;
+                    const visitor = document.getElementById('visitorFilter').value;
+                    const rank = document.getElementById('rankFilter').value;
+                    const attr = document.getElementById('attrFilter').value;
+                    const searchText = document.getElementById('customerSearch').value.trim();
 
-        try {
-            // 基本のクエリ（日付）
-            let q = query(collection(db, "activity_records"),
-                where("visitDate", ">=", start),
-                where("visitDate", "<=", end)
-            );
-            
-            // 部署・訪問者・ランクでFirestore側で一次絞り込み（高速）
-            const dept = document.getElementById('deptFilter').value;
-            const visitor = document.getElementById('visitorFilter').value;
-            const rank = document.getElementById('rankFilter').value;
-            const attr = document.getElementById('attrFilter').value;
-            const searchText = document.getElementById('customerSearch').value.trim();
+                    if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+                    if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+                    if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+                    const snap = await getDocs(q);
+                    let docs = snap.docs.map(d => d.data());
+                    if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+                    if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
+                    if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
 
-            const snap = await getDocs(q);
-            let docs = snap.docs.map(d => d.data());
+                    badge.innerText = docs.length;
+                    btn.disabled = (docs.length === 0);
+                    badge.style.color = docs.length > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+                } catch (e) { console.error(e); }
+            }, 500);
+        };
 
-            // メモリ上で残りの条件をフィルタリング（全条件の組み合わせに対応）
-            if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-            if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
-            if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+        window.executeExport = async () => {
+            const btn = document.getElementById('exportBtn');
+            const originalHTML = btn.innerHTML;
+            const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+            const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+            const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
 
-            const count = docs.length;
-            badge.innerText = count;
-            btn.disabled = (count === 0);
-            badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
-        } catch (e) { console.error("Count Error:", e); }
-    }, 500);
-};
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
+            try {
+                let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+                const dept = document.getElementById('deptFilter').value;
+                const visitor = document.getElementById('visitorFilter').value;
+                const rank = document.getElementById('rankFilter').value;
+                const attr = document.getElementById('attrFilter').value;
+                const searchText = document.getElementById('customerSearch').value.trim();
 
-window.executeExport = async () => {
-    const btn = document.getElementById('exportBtn');
-    const originalHTML = btn.innerHTML;
-    const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-    const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-    
-    const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
+                if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+                if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+                if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
+                const snap = await getDocs(q);
+                let docs = snap.docs.map(d => d.data());
+                if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+                if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
+                if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
 
-    try {
-        // updateCountと同じ条件でデータを取得
-        let q = query(collection(db, "activity_records"),
-            where("visitDate", ">=", start),
-            where("visitDate", "<=", end)
-        );
-        
-        const dept = document.getElementById('deptFilter').value;
-        const visitor = document.getElementById('visitorFilter').value;
-        const rank = document.getElementById('rankFilter').value;
-        const attr = document.getElementById('attrFilter').value;
-        const searchText = document.getElementById('customerSearch').value.trim();
+                if (docs.length === 0) { alert("対象データがありません。"); return; }
 
-        if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-        if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-        if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+                docs.sort((a, b) => {
+                    if (a.visitDate !== b.visitDate) return a.visitDate.localeCompare(b.visitDate);
+                    return (a.customerName || "").localeCompare(b.customerName || "", 'ja');
+                });
 
-        const snap = await getDocs(q);
-        let docs = snap.docs.map(d => d.data());
+                const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
+                docs.forEach(data => {
+                    const row = selectedCols.map(c => {
+                        const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
+                        return `"${val}"`;
+                    });
+                    csvRows.push(row.join(","));
+                });
+                const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
+                link.click();
+            } catch (e) { alert("出力に失敗しました。"); } finally { btn.disabled = false; btn.innerHTML = originalHTML; }
+        };
 
-        // フィルタ適用
-        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-        if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
-        if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+        async function init() {
+            await loadAttrOptions();
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
+            const grid = document.getElementById('columnGrid');
+            grid.innerHTML = COLUMNS.map(col => `
+                <label class="checkbox-card ${col.default ? 'active' : ''}">
+                    <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
+                    <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
+                </label>
+            `).join('');
+            try {
+                const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
+                const select = document.getElementById('visitorFilter');
+                snap.forEach(d => {
+                    const name = d.data().name;
+                    select.insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
+                });
+            } catch(e) { console.error(e); }
+            window.updateCount();
+        }
 
-        if (docs.length === 0) { alert("対象データがありません。"); return; }
-
-        // 並び替え：訪問日順 ＞ 部署順 ＞ お客様名順
-        docs.sort((a, b) => {
-            if (a.visitDate !== b.visitDate) return a.visitDate.localeCompare(b.visitDate);
-            if (a.visitorDept !== b.visitorDept) return (a.visitorDept || "").localeCompare(b.visitorDept || "", 'ja');
-            return (a.customerName || "").localeCompare(b.customerName || "", 'ja');
+        init().then(() => {
+            setupCustomerSearch();
         });
-
-        const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
-        docs.forEach(data => {
-            const row = selectedCols.map(c => {
-                const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
-                return `"${val}"`;
-            });
-            csvRows.push(row.join(","));
-        });
-
-        const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
-        link.click();
-    } catch (e) {
-        alert("出力に失敗しました。");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-    }
-};
-init().then(() => {
-    setupCustomerSearch();
-});
     </script>
 </body>
 </html>
