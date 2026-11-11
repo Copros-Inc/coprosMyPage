@@ -271,24 +271,17 @@ function setupCustomerSearch() {
     input.addEventListener('input', () => {
         if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
         const val = input.value.trim();
-        
-        if (val.length < 1) { 
-            box.style.display = 'none'; 
-            window.updateCount();
-            return; 
-        }
+        if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
 
         searchDebounceTimer = setTimeout(async () => {
             try {
-                // 🌟 実績登録と同じ：全件から直接検索（前方一致）
                 const ref = collection(db, "customers");
                 let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
                 let snap = await getDocs(q);
                 let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 🌟 前方一致で見つからない場合は部分一致でバックアップ検索（省エネしつつ確実）
                 if (docs.length === 0 && val.length >= 2) {
-                    const q2 = query(ref, limit(200)); 
+                    const q2 = query(ref, limit(100));
                     const snap2 = await getDocs(q2);
                     docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => (d.name || "").includes(val));
                 }
@@ -297,8 +290,7 @@ function setupCustomerSearch() {
                     box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
                 } else {
                     box.innerHTML = docs.map(d => `
-                        <div class="suggestion-item" 
-                             onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
+                        <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
                             <div class="flex justify-between items-center w-full">
                                 <span class="font-black text-slate-700">${d.name}</span>
                                 <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
@@ -306,12 +298,20 @@ function setupCustomerSearch() {
                         </div>`).join('');
                 }
                 box.style.display = 'block';
-                window.updateCount(); 
-            } catch (e) {
-                console.error("Search Error:", e);
-            }
+            } catch (e) { console.error(e); }
         }, 300);
     });
+
+    window.selectCustomerForCSV = (name) => {
+        input.value = name;
+        box.style.display = 'none';
+        window.updateCount();
+    };
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+    });
+}
 
     window.selectCustomerForCSV = (name) => {
         input.value = name;
