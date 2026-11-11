@@ -192,8 +192,8 @@
     <script type="module" src="common.js"></script>
     <script type="module">
         import { db, getDisplayDept } from "./common.js";
-　　　  import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc, limit } 
-　　　　from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";m/firebasejs/10.8.0/firebase-firestore.js";
+        import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc, limit } 
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
        
         const COLUMNS = [
             { id: "visitDate", label: "訪問日", default: true },
@@ -344,9 +344,6 @@ function setupCustomerSearch() {
             });
         };
 
-        // 🌟 修正：連打・自動実行による読み取り爆増を防ぐためのタイマー
-        let updateTimer = null;
-
 window.updateCount = async () => {
     if (updateTimer) clearTimeout(updateTimer);
     updateTimer = setTimeout(async () => {
@@ -457,8 +454,9 @@ window.executeExport = async () => {
         btn.innerHTML = originalHTML;
     }
 };
-setupCustomerSearch();
-        init();
+init().then(() => {
+    setupCustomerSearch();
+});
     </script>
 </body>
 </html>
