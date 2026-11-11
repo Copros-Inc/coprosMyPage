@@ -270,17 +270,19 @@ async function init() {
             input.addEventListener('input', () => {
                 if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
                 const val = input.value.trim();
-                if (val.length < 1) { box.style.display = 'none'; window.updateCount(); return; }
+                if (val.length < 1) { 
+                    box.style.display = 'none'; 
+                    window.updateCount(); 
+                    return; 
+                }
 
                 searchDebounceTimer = setTimeout(async () => {
                     try {
                         const ref = collection(db, "customers");
-                        // 🌟 実績登録と同一：全件直接クエリ
                         let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
                         let snap = await getDocs(q);
                         let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                        // 🌟 実績登録と同一：部分一致補完
                         if (docs.length === 0 && val.length >= 2) {
                             const q2 = query(ref, limit(100));
                             const snap2 = await getDocs(q2);
@@ -301,7 +303,7 @@ async function init() {
                         box.style.display = 'block';
                     } catch (e) { console.error(e); }
                 }, 300);
-          
+            }); // 🌟ここを復活させたことでエラーが消えます
 
             window.selectCustomerForCSV = (name) => {
                 input.value = name;
