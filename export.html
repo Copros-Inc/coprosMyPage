@@ -274,27 +274,29 @@ function setupCustomerSearch() {
         
         if (val.length < 1) { 
             box.style.display = 'none'; 
-            window.updateCount(); // 消した時に件数を再計算
+            window.updateCount();
             return; 
         }
 
         searchDebounceTimer = setTimeout(async () => {
             try {
-                // キャッシュがなければ1回だけ取得（省エネ）
-                if (!customerCache) {
-                    const q = query(collection(db, "customers"), limit(1000));
-                    const snap = await getDocs(q);
-                    customerCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                }
+                // 🌟 実績登録と同じ：全件から直接検索（前方一致）
+                const ref = collection(db, "customers");
+                let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
+                let snap = await getDocs(q);
+                let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                // 部分一致検索（爆速フィルタリング）
-                const docs = customerCache.filter(d => (d.name || "").includes(val));
+                // 🌟 前方一致で見つからない場合は部分一致でバックアップ検索（省エネしつつ確実）
+                if (docs.length === 0 && val.length >= 2) {
+                    const q2 = query(ref, limit(200)); 
+                    const snap2 = await getDocs(q2);
+                    docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => (d.name || "").includes(val));
+                }
 
                 if (docs.length === 0) {
                     box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
                 } else {
-                    // 上位30件のみ表示して表示速度を確保
-                    box.innerHTML = docs.slice(0, 30).map(d => `
+                    box.innerHTML = docs.map(d => `
                         <div class="suggestion-item" 
                              onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
                             <div class="flex justify-between items-center w-full">
@@ -310,6 +312,17 @@ function setupCustomerSearch() {
             }
         }, 300);
     });
+
+    window.selectCustomerForCSV = (name) => {
+        input.value = name;
+        box.style.display = 'none';
+        window.updateCount(); 
+    };
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+    });
+}
 
     window.selectCustomerForCSV = (name) => {
         input.value = name;
