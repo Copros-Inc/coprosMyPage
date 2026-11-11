@@ -228,36 +228,6 @@ async function loadAttrOptions() {
     } catch (e) { console.error("マスタ読み込み失敗:", e); }
 }
 
-async function init() {
-    await loadAttrOptions(); // ここで呼び出す
-    
-    // 初期期間設定（今月1日〜今日）
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
-    document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
-
-    // 項目生成
-    const grid = document.getElementById('columnGrid');
-    grid.innerHTML = COLUMNS.map(col => `
-        <label class="checkbox-card ${col.default ? 'active' : ''}">
-            <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
-            <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
-        </label>
-    `).join('');
-
-    // 訪問者リストの取得
-    try {
-        const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
-        const select = document.getElementById('visitorFilter');
-        snap.forEach(d => {
-            const name = d.data().name;
-            select.insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
-        });
-    } catch(e) { console.error(e); }
-
-    window.updateCount();
-}
         // 状態管理
         let searchDebounceTimer = null; 
         let updateTimer = null;
@@ -292,29 +262,29 @@ async function init() {
                         if (docs.length === 0) {
                             box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
                         } else {
-                            box.innerHTML = docs.map(d => `
-                                <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
-                                    <div class="flex justify-between items-center w-full">
-                                        <span class="font-black text-slate-700">${d.name}</span>
-                                        <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
-                                    </div>
-                                </div>`).join('');
-                        }
-                        box.style.display = 'block';
-                    } catch (e) { console.error(e); }
-                }, 300);
-            }); // 🌟ここを復活させたことでエラーが消えます
+                box.innerHTML = docs.map(d => `
+                    <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
+                        <div class="flex justify-between items-center w-full">
+                            <span class="font-black text-slate-700">${d.name}</span>
+                            <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
+                        </div>
+                    </div>`).join('');
+            }
+            box.style.display = 'block';
+        } catch (e) { console.error(e); }
+    }, 300);
+});
 
-            window.selectCustomerForCSV = (name) => {
-                input.value = name;
-                box.style.display = 'none';
-                window.updateCount();
-            };
+window.selectCustomerForCSV = (name) => {
+    input.value = name;
+    box.style.display = 'none';
+    window.updateCount();
+};
 
-            document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-            });
-        }
+document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+});
+}
 
         window.setQuickPeriod = (type) => {
             const today = new Date();
