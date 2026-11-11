@@ -574,17 +574,17 @@ window.postComment = async (recordId, customerName) => {
         const batch = writeBatch(db);
         
         for (const recipient of targetRecipients) {
-            // IDを「受信者_顧客_日付」で固定して名寄せ
-            const cleanDate = visitDate.replace(/[-/]/g, ''); // 🌟 スラッシュとハイフンを完全に消す
-const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`;
-const notiRef = doc(db, "notifications", customNotiId); // 🌟追加
+            const cleanDate = (visitDate || "").replace(/[-/]/g, '');
+            const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`;
+            const notiRef = doc(db, "notifications", customNotiId);
             
             batch.set(notiRef, {
                 recipient: recipient,
-                visitorName: recordData.visitorName, // 元の訪問者
+                visitorName: sender, // 送信者を訪問者名としてセット
                 customerName: customerName,
                 visitDate: fDate, 
                 type: "コメント入電",
+                commentText: text, // ★本文を追加
                 isRead: false,
                 createdAt: serverTimestamp()
             }, { merge: true });
