@@ -207,7 +207,7 @@ async function init() {
 
             return `
                 <div class="accordion-item" id="acc-${i}">
-                    <div class="accordion-header" onclick="window.toggleAcc('acc-${i}', '${r.visitorName}', '${r.customerName}', '${r.visitDate}')">
+                    <div class="accordion-header" onclick="window.toggleAcc('acc-${i}', '${r.visitorName}', '${r.customerName}', '${r.visitDate}', '${r.id}')">
                         <div class="flex items-center gap-4">
                             <span class="status-badge text-[9px] font-black px-2 py-0.5 rounded-md ${isRead ? 'bg-slate-500/30 text-white/50' : 'bg-orange-500 text-white animate-pulse'}">${isRead ? '既読' : '未読'}</span>
                             <span class="bg-white/20 px-3 py-1 rounded text-[10px] font-black">${r.startTime || '--:--'}</span>
@@ -325,10 +325,12 @@ function autoFocus() {
         const items = document.querySelectorAll('.accordion-item');
         items.forEach(item => {
             if (item.innerHTML.includes(targetId)) {
-                const content = item.querySelector('.accordion-content');
-                if (content) content.style.display = 'block';
-                const chevron = item.querySelector('.fa-chevron-down');
-                if (chevron) chevron.style.transform = 'rotate(180deg)';
+                // 直接 style を変えず、toggleAcc を呼ぶことで既読ロジックを走らせる
+                // window.toggleAcc(id, visitorName, customerName, date, recordId)
+                // 引数は各要素のデータから取得する必要がありますが、
+                // 最も簡単なのはクリックをシミュレートすることです
+                const header = item.querySelector('.accordion-header');
+                if (header) header.click(); 
                 item.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
@@ -344,7 +346,10 @@ function autoFocus() {
     items.forEach(item => {
         const headerText = item.querySelector('.accordion-header').innerText;
         if (headerText.includes(targetName) && headerText.includes(targetCust)) {
-            window.toggleAcc(item.id);
+            // 直接 window.toggleAcc を呼ぶ代わりに、ヘッダーをクリックさせる
+            const header = item.querySelector('.accordion-header');
+            if (header) header.click(); 
+            
             item.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     });
@@ -352,7 +357,8 @@ function autoFocus() {
     sessionStorage.removeItem('cp_usage_jump_customer');
 }        
 
-window.toggleAcc = async (id, visitorName, customerName, date) => {
+// 引数の最後に recordId を追加
+window.toggleAcc = async (id, visitorName, customerName, date, recordId) => {
     const item = document.getElementById(id);
     const content = item.querySelector('.accordion-content');
     const open = (content.style.display === 'block');
@@ -362,18 +368,15 @@ window.toggleAcc = async (id, visitorName, customerName, date) => {
     if(chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
 
     const badge = item.querySelector('.bg-orange-500');
+    // アコーディオンを開いた（!open）かつ 未読バッジがある場合
     if (!open && badge && badge.innerText.includes("未読")) {
-        const [y, m] = date.split(/[-/]/);
-        const cacheKey = `cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`;
-        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || '{}');
-        const noti = (cached.notifications || []).find(n => 
-            clean(n.visitorName) === clean(visitorName) && 
-            (n.visitDate||"").replace(/[-/]/g,'') === date.replace(/[-/]/g,'') && 
-            clean(n.customerName) === clean(customerName)
-        );
-        if (!noti || noti.isRead === false) {
-            window.toggleReadStatus(visitorName, customerName, date, false, true, id); 
-        }
+        const myName = sessionStorage.getItem('userName');
+        // ★ 爆速既読：新ID体系に合わせてキャッシュから引き算
+        const customNotiId = `noti_${clean(myName)}_${recordId}`;
+        updateBadgeLocally(customNotiId, 'read'); 
+
+        // サーバー側の更新（通知と実績の両方を既読に）
+        window.toggleReadStatus(visitorName, customerName, date, false, true, id, recordId); 
     }
 };
         
