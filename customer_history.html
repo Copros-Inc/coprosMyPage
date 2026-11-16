@@ -313,11 +313,11 @@ function autoOpenFirst() {
         const dateText = dateEl ? dateEl.innerText.trim() : "";
         const body = card.querySelector('.history-body');
         const arrow = card.querySelector('.arrow-icon');
+        const header = card.querySelector('.history-header');
 
         // 指定の日付と一致する場合、または指定がなく1件目の場合、アコーディオンを開く
         if ((targetDate && dateText === targetDate) || (!targetDate && !found)) {
-            body.style.display = 'block';
-            if (arrow) arrow.style.transform = 'rotate(180deg)';
+            if (header) header.click(); 
             if (targetDate && !found) {
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
@@ -609,10 +609,15 @@ window.postComment = async (recordId, customerName) => {
             if (!isOpen && !isRead) {
                 try {
                     const myName = sessionStorage.getItem('userName');
+                    
+                    // ★ 爆速既読連動を追加：サイドバーのバッジを即座に減らす
+                    const customNotiId = `noti_${clean(myName)}_${recordId}`;
+                    updateBadgeLocally(customNotiId, 'read'); 
+
                     const ref = doc(db, "activity_records", recordId);
                     await updateDoc(ref, { readBy: arrayUnion(myName) });
                     
-                    // 🌟 UIを即座に更新（バッジ）
+                    // UI更新（既読バッジへ切り替え）
                     const badge = el.querySelector('.status-badge');
                     if (badge) {
                         badge.innerText = "既読";
