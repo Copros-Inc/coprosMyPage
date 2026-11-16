@@ -549,12 +549,16 @@ window.postComment = async (recordId, customerName) => {
     const text = document.getElementById(`cmt-text-${recordId}`).value.trim();
     const receiverRaw = document.getElementById(`cmt-to-display-${recordId}`).innerText;
     const sender = sessionStorage.getItem('userName') || "管理者";
-    if (!text || receiverRaw === '選択してください') return alert("内容を入力してください");
+    
+    if (!text || receiverRaw === '選択してください' || !receiverRaw) {
+        return alert("内容と宛先を入力してください");
+    }
 
     try {
         const ref = doc(db, "activity_records", recordId);
         const docSnap = await getDoc(ref);
-        if (!docSnap.exists()) return;
+        if (!docSnap.exists()) return alert("実績データが見つかりませんでした");
+        
         const recordData = docSnap.data();
         const visitDate = recordData.visitDate || "";
         const fDate = visitDate.replace(/-/g, '/');
@@ -562,42 +566,48 @@ window.postComment = async (recordId, customerName) => {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-// 1. 実績本体にコメントを追加（上書き更新）
-const collectionName = (recordId.length > 20) ? "activity_records" : "notifications"; 
-const finalRef = doc(db, collectionName, recordId);
-await updateDoc(finalRef, {
+        // 🌟 1. コメントを「実績本体（activity_records）」に確実に集約
+        await updateDoc(ref, {
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
-        // 2. 通知のUpsert（Read 0の直接書き込み）
-        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()); // 🌟 フィルターを削除
+        // 🌟 2. 通知の作成（一意の通知IDでエラー回避＆上書き防止）
+        const targetRecipients = receiverRaw.split(',').map(n => n.trim());
         const batch = writeBatch(db);
         
         for (const recipient of targetRecipients) {
-            // 🌟 通知IDに実績ID(recordId)を混ぜて上書きを防止
+            // 通知IDを「noti_宛先_実績ID_cmt」にして、存在しなければ新規作成（set merge）
             const customNotiId = `noti_${clean(recipient)}_${recordId}_cmt`;
             const notiRef = doc(db, "notifications", customNotiId);
-            updateBadgeLocally(customNotiId + '_cmt', 'read');
+            
+            // 自分のバッジは即座に既読扱いにする（整合性のため）
+            if (recipient === sender) {
+                updateBadgeLocally(customNotiId, 'read');
+            }
             
             batch.set(notiRef, {
                 recipient: recipient,
-                visitorName: sender,
+                visitorName: sender, // 誰がコメントしたかを表示
                 customerName: customerName,
                 visitDate: fDate, 
                 type: "コメント入電",
-                commentText: text, // 🌟 本文を埋め込んで白紙を防止
-                recordId: recordId, // 🌟 実績IDを紐付け
+                commentText: text, // 本文を埋め込み
+                recordId: recordId, // 実績IDを紐付け
                 isRead: false,
                 createdAt: serverTimestamp()
             }, { merge: true });
         }
         await batch.commit();
 
-        // キャッシュクリア（自分側の表示更新用）
+        // 🌟 3. キャッシュを削除して、戻った時や再描画時に最新コメントを出す
         sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+        
         alert("コメントを送信しました");
         location.reload();
-    } catch (e) { alert("送信エラー: " + e.message); }
+    } catch (e) { 
+        console.error(e);
+        alert("送信エラー: " + e.message); 
+    }
 };
         
 window.toggleDetail = async (el, recordId, isRead) => {
