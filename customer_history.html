@@ -607,65 +607,79 @@ window.toggleDetail = async (el, recordId, isRead) => {
     body.style.display    = isOpen ? 'none' : 'block';
     arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 
-    // ★ 未読(!isRead)を開いた時(!isOpen)のみ実行して通信を節約
-    if (!isOpen && !isRead) {
-        try {
-            const myName = sessionStorage.getItem('userName');
-            
-            // ① 爆速既読連動：サイドバーのバッジ（実績とコメント両方）を即座に減らす
-            const customNotiId = `noti_${clean(myName)}_${recordId}`;
-            updateBadgeLocally(customNotiId, 'read');
-            updateBadgeLocally(customNotiId + '_cmt', 'read');
+    // ★ 開いた時( !isOpen )に実行
+    if (!isOpen) {
+        // 🌟 追加：一覧ページ（list_records.html）の赤丸を消すための連動設定
+        const ids = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+        if (!ids.includes(recordId)) {
+            ids.push(recordId);
+            localStorage.setItem('cp_read_ids', JSON.stringify(ids));
+        }
 
-            // ② 実績本体の「出席簿(readBy)」に名前を刻む（カレンダーの丸を消す）
-            const ref = doc(db, "activity_records", recordId);
-            await updateDoc(ref, { readBy: arrayUnion(myName) });
-            
-            // ③ カレンダーのキャッシュを削除（戻った時に赤い丸を消すため）
-            Object.keys(sessionStorage).forEach(k => {
-                if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k);
-            });
+        // 未読(!isRead)の場合のみFirestoreを更新して通信を節約
+        if (!isRead) {
+            try {
+                const myName = sessionStorage.getItem('userName');
+                
+                // ① 爆速既読連動：サイドバーのバッジを即座に減らす
+                const customNotiId = `noti_${clean(myName)}_${recordId}`;
+                if (window.updateBadgeLocally) { // 関数が存在する場合のみ実行
+                    updateBadgeLocally(customNotiId, 'read');
+                    updateBadgeLocally(customNotiId + '_cmt', 'read');
+                }
 
-            // ④ UI更新（既読バッジへ切り替え）
-            const badge = el.querySelector('.status-badge');
-            if (badge) {
-                badge.innerText = "既読";
-                badge.className = "status-badge text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50";
-            }
-            const card = el.closest('.history-card');
-            if (card) card.classList.remove('border-l-4', 'border-orange-500');
+                // ② 実績本体の「出席簿(readBy)」に名前を刻む
+                const ref = doc(db, "activity_records", recordId);
+                await updateDoc(ref, { readBy: arrayUnion(myName) });
+                
+                // ③ 各種キャッシュを削除（整合性のため）
+                Object.keys(sessionStorage).forEach(k => {
+                    if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k);
+                });
 
-            // ⑤ 「未読に戻す」ボタンを出現させる
-            const btnArea = body.querySelector('.flex.justify-end.mb-4');
-            if (btnArea) {
-                btnArea.innerHTML = `
-                    <button onclick="window.toggleRecordReadStatus('${recordId}', true); event.stopPropagation();" 
-                    class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
-                        <i class="fa-solid fa-envelope"></i>
-                        <span>未読に戻す</span>
-                    </button>`;
-            }
-            
-            // 自分自身のキャッシュを削除して次回以降の表示を更新
-            sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
-        } catch (e) { console.error("既読更新エラー:", e); }
+                // ④ UI更新（既読バッジへ切り替え）
+                const badge = el.querySelector('.status-badge');
+                if (badge) {
+                    badge.innerText = "既読";
+                    badge.className = "status-badge text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50";
+                }
+                const card = el.closest('.history-card');
+                if (card) card.classList.remove('border-l-4', 'border-orange-500');
+
+                // ⑤ 「未読に戻す」ボタンの出現（既存処理）
+                const btnArea = body.querySelector('.flex.justify-end.mb-4');
+                if (btnArea) {
+                    btnArea.innerHTML = `
+                        <button onclick="window.toggleRecordReadStatus('${recordId}', true); event.stopPropagation();" 
+                        class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                            <i class="fa-solid fa-envelope"></i>
+                            <span>未読に戻す</span>
+                        </button>`;
+                }
+                
+                // 履歴キャッシュを削除して最新状態にする
+                sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+            } catch (e) { console.error("既読更新エラー:", e); }
+        }
     }
 };
 
-        // 🌟 追加：未読に戻すロジック（arrayRemove を使用）
-        window.toggleRecordReadStatus = async (recordId, currentStatus) => {
-            if (!confirm("未読に戻しますか？")) return;
-            try {
-                const myName = sessionStorage.getItem('userName');
-                const ref = doc(db, "activity_records", recordId);
-                // 自分の名前を readBy 配列から削除
-                await updateDoc(ref, { readBy: arrayRemove(myName) });
-                
-                // キャッシュを破棄してリロード
-                sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
-                location.reload();
-            } catch (e) { console.error("未読戻しエラー:", e); }
-        };
+window.toggleRecordReadStatus = async (recordId, currentStatus) => {
+    if (!confirm("未読に戻しますか？")) return;
+    try {
+        const myName = sessionStorage.getItem('userName');
+        const ref = doc(db, "activity_records", recordId);
+        await updateDoc(ref, { readBy: arrayRemove(myName) });
+
+        // 🌟 追加：localStorage からも削除して一覧の赤丸を復活させる
+        let ids = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+        ids = ids.filter(id => id !== recordId);
+        localStorage.setItem('cp_read_ids', JSON.stringify(ids));
+        
+        sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+        location.reload();
+    } catch (e) { console.error("未読戻しエラー:", e); }
+};
 
         window.deleteComment = async (recordId, commentIdx, custName) => {
     if (!confirm("自分のコメントを取り消しますか？")) return;
