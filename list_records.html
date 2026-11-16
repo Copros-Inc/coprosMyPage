@@ -336,6 +336,8 @@ window.updateView = () => {
                   
         function renderTable(dataList) {
             const tbody = document.getElementById('recordTable');
+            const myNameClean = clean(sessionStorage.getItem('userName'));
+
             if (dataList.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold uppercase tracking-widest">該当する実績はありません</td></tr>`;
                 document.getElementById('totalDisplay').innerText = 0;
@@ -343,34 +345,30 @@ window.updateView = () => {
             }
 
             tbody.innerHTML = dataList.map((data, i) => {
-                // 既存：滞在時間計算
+                // ★ 既読判定：実績本体の出席簿に名前があるか
+                const isRead = (data.readBy || []).map(n => clean(n)).includes(myNameClean);
+                
+                // 未読なら赤い丸を出す
+                const badge = !isRead ? `<span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 mr-2 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.4)]"></span>` : '';
+
                 let dur = "";
                 if (data.startTime && data.endTime && data.startTime !== "00:00") {
-                    const s    = data.startTime.split(':');
-                    const e    = data.endTime.split(':');
-                    const diff = (parseInt(e[0]) * 60 + parseInt(e[1] || 0))
-                                - (parseInt(s[0]) * 60 + parseInt(s[1] || 0));
-                    if (diff > 0) {
-                        dur = `<div class="text-[#0ea5e9] text-[10px] mt-1 font-black">
-                                   <i class="fa-regular fa-clock mr-1"></i>滞在: ${diff}分
-                               </div>`;
-                    }
+                    const s = data.startTime.split(':');
+                    const e = data.endTime.split(':');
+                    const diff = (parseInt(e[0]) * 60 + parseInt(e[1] || 0)) - (parseInt(s[0]) * 60 + parseInt(s[1] || 0));
+                    if (diff > 0) dur = `<div class="text-[#0ea5e9] text-[10px] mt-1 font-black"><i class="fa-regular fa-clock mr-1"></i>滞在: ${diff}分</div>`;
                 }
 
-                // =========================================================
-                // ▼▼▼ 修正①：履歴ボタンに rank・attr を追加 ▼▼▼
-                // ※ list_records には rank/attr フィールドが activity_records に
-                //    保存されていない場合があるため、存在すれば渡す設計にする
-                // =========================================================
                 const eName = encodeURIComponent(data.customerName || '');
-                const eRank = encodeURIComponent(data.customerRank || data.rank || ''); // rankでも拾えるように
-　　　　　　     const eAttr = encodeURIComponent(data.customerAttr || data.customerType || data.type || ''); // typeでも拾えるように
+                const eRank = encodeURIComponent(data.customerRank || data.rank || '');
+                const eAttr = encodeURIComponent(data.customerAttr || data.customerType || data.type || '');
+                const targetDate = encodeURIComponent((data.visitDate || '').replace(/-/g, '/'));
 
                 return `
-                <tr class="hover:bg-sky-50/50 transition-colors">
+                <tr class="hover:bg-sky-50/50 transition-colors ${!isRead ? 'bg-orange-50/30' : ''}">
                     <td class="p-6 text-slate-300 font-mono text-xs border-r border-slate-50">${i + 1}</td>
                     <td class="p-6 text-left font-black text-slate-800 leading-snug w-[400px]">
-                        ${data.customerName || '---'}
+                        ${badge}${data.customerName || '---'}
                     </td>
                     <td class="p-6 w-[200px]">
                         <div class="text-slate-600 font-mono text-sm">${(data.visitDate || '').replace(/-/g, '/')}</div>
@@ -382,14 +380,13 @@ window.updateView = () => {
                     <td class="p-6 w-[180px] text-slate-700 font-bold">
                         ${data.visitorName || '不明'}
                         <br>
-<span class="text-[8px] text-slate-400 uppercase font-black tracking-tighter">
-    ${getDisplayDept(data.visitorDept)}
-</span>
+                        <span class="text-[8px] text-slate-400 uppercase font-black tracking-tighter">
+                            ${getDisplayDept(data.visitorDept)}
+                        </span>
                     </td>
                     <td class="p-6 text-center">
-
                         <button
-                            onclick="location.href='customer_history.html?name=${eName}&rank=${eRank}&attr=${eAttr}&targetDate=${encodeURIComponent((data.visitDate || '').replace(/-/g, '/'))}'"
+                            onclick="location.href='customer_history.html?name=${eName}&rank=${eRank}&attr=${eAttr}&targetDate=${targetDate}'"
                             class="w-9 h-9 flex items-center justify-center bg-blue-50 text-[#004098] rounded-xl hover:bg-[#004098] hover:text-white mx-auto transition-all shadow-sm">
                             <i class="fa-solid fa-chevron-right text-xs"></i>
                         </button>
@@ -402,7 +399,7 @@ window.updateView = () => {
 
             document.getElementById('totalDisplay').innerText = dataList.length;
         }
-
+        
 // 🌟 修正：明示的に window に登録し、確実に history.html へ飛ばす
 window.editSelectedRecord = () => {
     const checks = document.querySelectorAll('.record-check:checked');
