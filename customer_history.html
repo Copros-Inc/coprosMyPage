@@ -577,6 +577,7 @@ window.postComment = async (recordId, customerName) => {
             // 🌟 通知IDに実績ID(recordId)を混ぜて上書きを防止
             const customNotiId = `noti_${clean(recipient)}_${recordId}_cmt`;
             const notiRef = doc(db, "notifications", customNotiId);
+            updateBadgeLocally(customNotiId + '_cmt', 'read');
             
             batch.set(notiRef, {
                 recipient: recipient,
