@@ -349,7 +349,8 @@ window.updateView = () => {
 
             tbody.innerHTML = dataList.map((data, i) => {
                 // ★ 既読判定：実績本体の出席簿に名前があるか
-                const isRead = (data.readBy || []).map(n => clean(n)).includes(myNameClean);
+                const localReads = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+                const isRead = (data.readBy || []).map(n => clean(n)).includes(myNameClean) || localReads.includes(data.id);
                 
                 // 未読なら赤い丸を出す
                 const badge = !isRead ? `<span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 mr-2 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.4)]"></span>` : '';
@@ -389,7 +390,12 @@ window.updateView = () => {
                     </td>
                     <td class="p-6 text-center">
                         <button
-                            onclick="location.href='customer_history.html?name=${eName}&rank=${eRank}&attr=${eAttr}&targetDate=${targetDate}&recordId=${data.id}'"
+                            onclick="(() => {
+    const ids = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+    if(!ids.includes('${data.id}')) { ids.push('${data.id}'); localStorage.setItem('cp_read_ids', JSON.stringify(ids)); }
+    location.href='customer_history.html?name=${eName}&rank=${eRank}&attr=${eAttr}&targetDate=${targetDate}&recordId=${data.id}';
+})()"
+
                             class="w-9 h-9 flex items-center justify-center bg-blue-50 text-[#004098] rounded-xl hover:bg-[#004098] hover:text-white mx-auto transition-all shadow-sm">
                             <i class="fa-solid fa-chevron-right text-xs"></i>
                         </button>
@@ -432,6 +438,13 @@ window.editSelectedRecord = () => {
         };
 
         window.initMonth();
+        
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted && allRecords.length > 0) {
+        renderTable(allRecords); // メモリ上のデータで再描画するだけ（Read消費 0）
+    }
+});
+        
     </script>
 </body>
 </html>
