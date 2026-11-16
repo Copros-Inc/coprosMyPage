@@ -299,35 +299,33 @@
             }
         }
 
-        // --- 修正箇所：特定の日付の実績を自動で「全開」にする ---
-function autoOpenFirst() {
-    const params = new URLSearchParams(window.location.search);
-    const targetDate = params.get('targetDate'); // 2026/09/30 形式
-    
-    const cards = document.querySelectorAll('.history-card');
-    let found = false;
+        // --- 修正箇所：特定の実績を自動で開き、既読にする ---
+        function autoOpenFirst() {
+            const params = new URLSearchParams(window.location.search);
+            const targetDate = params.get('targetDate'); 
+            const targetId   = params.get('recordId'); // ★ 追加：一覧から渡されたIDを取得
 
-    cards.forEach(card => {
-        // 🌟 修正：visit-date-text クラスから日付を取得する
-        const dateEl = card.querySelector('.visit-date-text');
-        const dateText = dateEl ? dateEl.innerText.trim() : "";
-        const body = card.querySelector('.history-body');
-        const arrow = card.querySelector('.arrow-icon');
-        const header = card.querySelector('.history-header');
+            const cards = document.querySelectorAll('.history-card');
+            let found = false;
 
-        // 指定の日付と一致する場合、または指定がなく1件目の場合、アコーディオンを開く
-        if ((targetDate && dateText === targetDate) || (!targetDate && !found)) {
-            if (header) header.click(); 
-            if (targetDate && !found) {
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            found = true;
-        } else {
-            body.style.display = 'none';
-            if (arrow) arrow.style.transform = 'rotate(0deg)';
+            cards.forEach(card => {
+                const dateEl = card.querySelector('.visit-date-text');
+                const dateText = dateEl ? dateEl.innerText.trim() : "";
+                const header = card.querySelector('.history-header');
+
+                // ★ 判定条件：IDが一致する、またはID指定がなく日付が一致する場合
+                const isTargetMatch = targetId ? (card.id === `card-${targetId}`) : (targetDate && dateText === targetDate);
+
+                if (isTargetMatch || (!targetId && !targetDate && !found)) {
+                    if (header) header.click(); // 自動クリック実行（これで既読処理が走る）
+                    
+                    if (isTargetMatch && !found) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    found = true;
+                }
+            });
         }
-    });
-}
 
 function renderAttachments(attachments, recordIdx) {
     if (!attachments || !attachments.length) return '';
