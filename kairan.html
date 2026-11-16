@@ -151,12 +151,22 @@
                 let notices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
                 // 🌟 名寄せロジック（重複排除）
-                const uniqueMap = new Map();
-                notices.forEach(n => {
-                    const uKey = `${clean(n.visitorName)}_${clean(n.customerName)}_${(n.visitDate||"").replace(/[-/]/g,'/')}`;
-                    if (!uniqueMap.has(uKey)) uniqueMap.set(uKey, n);
-                });
-                const finalNotices = Array.from(uniqueMap.values());
+const uniqueMap = new Map();
+notices.forEach(n => {
+    // 実績IDをキーにする（recordIdがない古い通知は通知IDそのものをキーにする）
+    const uKey = n.recordId || n.id;
+    
+    if (!uniqueMap.has(uKey)) {
+        uniqueMap.set(uKey, n);
+    } else {
+        const existing = uniqueMap.get(uKey);
+        // すでにマップにある通知が「既読」で、今回の通知が「未読」なら、未読の方を優先して表示
+        if (existing.isRead && n.isRead === false) {
+            uniqueMap.set(uKey, n);
+        }
+    }
+});
+const finalNotices = Array.from(uniqueMap.values());
                 // 作成日時順に並び替え
                 finalNotices.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
@@ -358,22 +368,29 @@
         }
 
         // ▼ アコーディオン開く時に既読処理
-        window.toggleKairan = async (id, isRead, date) => {
-            const item = document.getElementById(`item-${id}`);
-            const content = item.querySelector('.accordion-content');
-            const isOpen = content.style.display === 'block';
-            content.style.display = isOpen ? 'none' : 'block';
+window.toggleKairan = async (id, isRead, date) => {
+    const item = document.getElementById(`item-${id}`);
+    const content = item.querySelector('.accordion-content');
+    const isOpen = content.style.display === 'block';
+    content.style.display = isOpen ? 'none' : 'block';
+    
+    // アコーディオンを「今から開く」かつ「未読」の場合
+    if (!isOpen && !isRead) {
+        try {
+            // 1. Firestore上のこの通知(id)を既読にする
+            await updateDoc(doc(db, "notifications", id), { isRead: true });
             
-/* --- kairan.html 359行目付近：toggleKairan の中 --- */
-if (!isOpen && !isRead) {
-    try {
-        await updateDoc(doc(db, "notifications", id), { isRead: true });
-        updateBadgeLocally(id, 'read'); // さっき追加したバッジ引き算
-        
-        item.classList.remove('unread');
-        const label = item.querySelector('.status-txt');
-        label.innerText = "既読"; 
-        label.className = "status-txt status-read";
+            // 2. サイドバーのバッジを即座に減らす（idをそのまま渡す）
+            // 🌟 これにより、noti_..._cmt も含め、正確にバッジが減ります
+            updateBadgeLocally(id, 'read'); 
+            
+            // 3. UIの更新（オレンジ色の線を消すなど）
+            item.classList.remove('unread');
+            const label = item.querySelector('.status-txt');
+            if (label) {
+                label.innerText = "既読"; 
+                label.className = "status-txt status-read";
+            }
 
         // 🌟 追加：中のボタンも「未読に戻す」へ即座に切り替える
         const btn = item.querySelector('button[onclick*="toggleReadStatus"]');
@@ -389,27 +406,43 @@ if (!isOpen && !isRead) {
 }
         };
 
-        // ▼ 一括処理
-        window.bulkAction = async (action) => {
-            const checks = document.querySelectorAll('.bulk-check:checked');
-            if (!checks.length) return alert("項目にチェックを入れてください");
-            if (!confirm(`${checks.length}件を${action === 'read' ? '既読' : '削除'}にしますか？`)) return;
+// ▼ 一括処理（既読・削除のバッジ連動強化）
+window.bulkAction = async (action) => {
+    const checks = document.querySelectorAll('.bulk-check:checked');
+    if (!checks.length) return alert("項目にチェックを入れてください");
+    if (!confirm(`${checks.length}件を${action === 'read' ? '既読' : '削除'}にしますか？`)) return;
+    
+    try {
+        const batch = writeBatch(db);
+        checks.forEach(cb => {
+            const id = cb.value;
+            const ref = doc(db, "notifications", id);
             
-            const batch = writeBatch(db);
-            checks.forEach(cb => {
-                const ref = doc(db, "notifications", cb.value);
-                if (action === 'read') batch.update(ref, { isRead: true });
-                else batch.delete(ref);
-            });
-            await batch.commit();
-            
-            // ▼ 一括処理後、カレンダーキャッシュを全クリア
-            Object.keys(sessionStorage).forEach(k => {
-                if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k);
-            });
-            
-            location.reload();
-        };
+            if (action === 'read') {
+                batch.update(ref, { isRead: true });
+                // 🌟 追加：一括既読時にバッジを即座に減らす
+                updateBadgeLocally(id, 'read');
+            } else {
+                batch.delete(ref);
+                // 🌟 追加：一括削除時もバッジから消去する
+                updateBadgeLocally(id, 'read');
+            }
+        });
+        
+        await batch.commit();
+        
+        // ▼ カレンダーキャッシュを全クリア
+        Object.keys(sessionStorage).forEach(k => {
+            if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k);
+        });
+
+        alert(`${checks.length}件を処理しました`);
+        location.reload(); 
+    } catch (e) {
+        console.error("一括処理エラー:", e);
+        alert("処理に失敗しました: " + e.message);
+    }
+};
 
 // ▼ 通知リセット（全ての幽霊通知を強制既読化）
 window.forceResetBadge = async () => {
