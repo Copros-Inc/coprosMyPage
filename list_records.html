@@ -289,9 +289,14 @@ window.executeSearch = async (append = false) => {
         }
 
         const q = query(ref, ...constraints);
-        const snap = await getDocs(q);
+const snap = await getDocs(q);
 
-        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+// 🌟 重要：今回の取得分の「最後のドキュメント」を保存する
+if (snap.docs.length > 0) {
+    lastVisible = snap.docs[snap.docs.length - 1];
+}
+
+let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // 🌟 修正：お客様名・訪問者名の両方を「一文字（部分一致）」で絞り込む
         if (isFiltering) {
@@ -313,18 +318,21 @@ window.executeSearch = async (append = false) => {
             saveToCache(cacheKey, allRecords);
         }
 
-        // 表示の実行
-        renderTable(allRecords);
-        document.getElementById('totalDisplay').innerText = allRecords.length;
 
-        // ボタンの制御
-        if (moreBtn) {
-            if (snap.docs.length > 0) {
-                moreBtn.classList.remove('hidden');
-            } else {
-                moreBtn.classList.add('hidden');
-            }
-        }
+// 表示の実行
+renderTable(allRecords);
+document.getElementById('totalDisplay').innerText = allRecords.length;
+
+// ボタンの制御
+if (moreBtn) {
+    // 今回 50件（または150件）きっちり取れた場合は、まだ次がある可能性がある
+    const currentLimit = isFiltering ? 150 : 50;
+    if (snap.docs.length >= currentLimit) {
+        moreBtn.classList.remove('hidden');
+    } else {
+        moreBtn.classList.add('hidden');
+    }
+}
     } catch (e) {
         console.error(e);
         tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-rose-400 font-bold">検索エラー</td></tr>`;
