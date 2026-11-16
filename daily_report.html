@@ -468,50 +468,56 @@ window.postComment = async (recordId, customerName, index, visitDate) => {
     const sender = sessionStorage.getItem('userName') || "管理者";
     const fDate = visitDate.replace(/-/g, '/');
 
-    if (!text || receiverRaw === '選択してください') return alert("内容を入力してください");
+    if (!text || receiverRaw === '選択してください' || !receiverRaw) {
+        return alert("内容と宛先を入力してください");
+    }
 
     try {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-// 1. 実績本体にコメントを追加（上書き更新）
-const collectionName = (recordId.length > 20) ? "activity_records" : "notifications"; 
-const docRef = doc(db, collectionName, recordId);
-await updateDoc(docRef, {
+        // 🌟 修正：コメントは常に activity_records（実績本体）に書き込む
+        // IDの長さに関わらず、デイリーレポートに表示されているのは実績データなので
+        const docRef = doc(db, "activity_records", recordId);
+        
+        await updateDoc(docRef, {
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
-        // 2. 通知のUpsert（Read 0の直接書き込み）
-        const targetRecipients = receiverRaw.split(', ').map(n => n.trim()); // 🌟 フィルターを削除
+        // 🌟 修正：通知の作成（新しい通知ID体系で上書き防止）
+        const targetRecipients = receiverRaw.split(',').map(n => n.trim()); 
         const batch = writeBatch(db);
         
         for (const recipient of targetRecipients) {
-            // 🌟 通知IDに実績ID(recordId)を混ぜて上書きを防止
+            // 通知IDを「noti_宛先_実績ID_cmt」に固定して、既存の通知と衝突させない
             const customNotiId = `noti_${clean(recipient)}_${recordId}_cmt`;
             const notiRef = doc(db, "notifications", customNotiId);
             
             batch.set(notiRef, {
                 recipient: recipient,
-                visitorName: dailyData[index].visitorName,
+                visitorName: sender, // 送信者を通知の送り主にする
                 customerName: customerName,
                 visitDate: fDate, 
                 type: "コメント入電",
-                commentText: text, // 🌟 本文を埋め込んで白紙を防止
-                recordId: recordId, // 🌟 実績IDを紐付け
+                commentText: text,
+                recordId: recordId,
                 isRead: false,
                 createdAt: serverTimestamp()
             }, { merge: true });
         }
         await batch.commit();
 
-        // 自身のキャッシュを削除してリフレッシュ
+        // キャッシュ削除（カレンダー等の表示更新用）
         const [y, m] = visitDate.split(/[-/]/);
         sessionStorage.removeItem(`cp_cal_cache_v_ultimate_${y}_${m.padStart(2, '0')}`);
         sessionStorage.setItem('cp_auto_open_recordId', recordId); 
 
-        alert("送信しました");
+        alert("コメントを送信しました");
         location.reload();
-    } catch (e) { alert("送信エラー: " + e.message); }
+    } catch (e) { 
+        console.error(e);
+        alert("送信エラー: " + e.message); 
+    }
 };
 
 window.deleteComment = async (recordId, commentIdx) => {
