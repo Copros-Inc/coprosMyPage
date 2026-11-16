@@ -73,6 +73,13 @@ function renderBadge(allUnread, callback) {
     // 🌟 callbackがあれば実行し、更新イベントを飛ばす
     if (callback) callback(allUnread);
     window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
+    if ('setAppBadge' in navigator) {
+        if (allUnread.length > 0) {
+            navigator.setAppBadge(allUnread.length).catch(() => {});
+        } else {
+            navigator.clearAppBadge().catch(() => {});
+        }
+    }
 } 
 
 // 🌟 ローディング演出の統一
@@ -277,4 +284,14 @@ export function updateBadgeLocally(notiId, action = 'read') {
             }
         }
     });
+    if ('setAppBadge' in navigator) {
+        try {
+            const list = JSON.parse(sessionStorage.getItem('cp_unread_cache') || '[]');
+            if (list.length > 0) {
+                navigator.setAppBadge(list.length).catch(() => {});
+            } else {
+                navigator.clearAppBadge().catch(() => {});
+            }
+        } catch (e) {}
+    }
 }
