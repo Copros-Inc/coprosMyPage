@@ -564,8 +564,10 @@ window.postComment = async (recordId, customerName) => {
         const now = new Date();
         const dateStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        // 1. 実績本体にコメントを追加（上書き更新）
-        await updateDoc(ref, { 
+// 1. 実績本体にコメントを追加（上書き更新）
+const collectionName = (recordId.length > 20) ? "activity_records" : "notifications"; 
+const finalRef = doc(db, collectionName, recordId);
+await updateDoc(finalRef, {
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
