@@ -27,20 +27,17 @@ export async function watchNotifications(callback) {
     const now = Date.now();
     const lastCheck = parseInt(sessionStorage.getItem('cp_last_noti_check') || 0);
 
-    // 🌟 「5分間（300,000ms）」は、自動での再取得を制限する（＝開きっぱなし時のRead抑制）
-    // ただし、ページをリロードしたり、callback（手動更新）がある場合は強制取得する
+    // ★ 修正：データ取得は5分に1回だが、描画（renderStoredBadge）は毎回行う
     if (now - lastCheck < 300000 && !callback) {
-        // キャッシュがあればそれを表示（バッジが消えるのを防ぐ）
-        renderStoredBadge();
+        renderStoredBadge(); // キャッシュから即座に表示（Read発生ゼロ）
         return; 
     }
 
     try {
         const q = query(collection(db, "notifications"), where("recipient", "==", rawName), where("isRead", "==", false));
-        const snap = await getDocs(q);
+        const snap = await getDocs(q); // ここで初めてサーバー通信（5分に1回）
         const allUnread = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        // データを保存しておく
         sessionStorage.setItem('cp_unread_cache', JSON.stringify(allUnread));
         sessionStorage.setItem('cp_last_noti_check', now);
 
