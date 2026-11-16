@@ -602,48 +602,57 @@ await updateDoc(finalRef, {
     } catch (e) { alert("送信エラー: " + e.message); }
 };
         
-        window.toggleDetail = async (el, recordId, isRead) => {
-            const body   = el.nextElementSibling;
-            const arrow  = el.querySelector('.arrow-icon');
-            const isOpen = body.style.display === 'block';
-            body.style.display    = isOpen ? 'none' : 'block';
-            arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+window.toggleDetail = async (el, recordId, isRead) => {
+    const body   = el.nextElementSibling;
+    const arrow  = el.querySelector('.arrow-icon');
+    const isOpen = body.style.display === 'block';
+    body.style.display    = isOpen ? 'none' : 'block';
+    arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 
-            if (!isOpen && !isRead) {
-                try {
-                    const myName = sessionStorage.getItem('userName');
-                    
-                    // ★ 爆速既読連動を追加：サイドバーのバッジを即座に減らす
-                    const customNotiId = `noti_${clean(myName)}_${recordId}`;
-                    updateBadgeLocally(customNotiId, 'read'); 
+    // ★ 未読(!isRead)を開いた時(!isOpen)のみ実行して通信を節約
+    if (!isOpen && !isRead) {
+        try {
+            const myName = sessionStorage.getItem('userName');
+            
+            // ① 爆速既読連動：サイドバーのバッジ（実績とコメント両方）を即座に減らす
+            const customNotiId = `noti_${clean(myName)}_${recordId}`;
+            updateBadgeLocally(customNotiId, 'read');
+            updateBadgeLocally(customNotiId + '_cmt', 'read');
 
-                    const ref = doc(db, "activity_records", recordId);
-                    await updateDoc(ref, { readBy: arrayUnion(myName) });
-                    
-                    // UI更新（既読バッジへ切り替え）
-                    const badge = el.querySelector('.status-badge');
-                    if (badge) {
-                        badge.innerText = "既読";
-                        badge.className = "status-badge text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50";
-                    }
-                    const card = el.closest('.history-card');
-                    if (card) card.classList.remove('border-l-4', 'border-orange-500');
+            // ② 実績本体の「出席簿(readBy)」に名前を刻む（カレンダーの丸を消す）
+            const ref = doc(db, "activity_records", recordId);
+            await updateDoc(ref, { readBy: arrayUnion(myName) });
+            
+            // ③ カレンダーのキャッシュを削除（戻った時に赤い丸を消すため）
+            Object.keys(sessionStorage).forEach(k => {
+                if (k.startsWith('cp_cal_cache')) sessionStorage.removeItem(k);
+            });
 
-                    // 🌟 修正：開いた瞬間に「未読に戻す」ボタンを出現させる
-                    const btnArea = body.querySelector('.flex.justify-end.mb-4');
-                    if (btnArea && !btnArea.innerHTML.trim()) {
-                        btnArea.innerHTML = `
-                            <button onclick="window.toggleRecordReadStatus('${recordId}', true); event.stopPropagation();" 
-                            class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
-                                <i class="fa-solid fa-envelope"></i>
-                                <span>未読に戻す</span>
-                            </button>`;
-                    }
-                    
-                    sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
-                } catch (e) { console.error("既読更新エラー:", e); }
+            // ④ UI更新（既読バッジへ切り替え）
+            const badge = el.querySelector('.status-badge');
+            if (badge) {
+                badge.innerText = "既読";
+                badge.className = "status-badge text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-500/30 text-white/50";
             }
-        };
+            const card = el.closest('.history-card');
+            if (card) card.classList.remove('border-l-4', 'border-orange-500');
+
+            // ⑤ 「未読に戻す」ボタンを出現させる
+            const btnArea = body.querySelector('.flex.justify-end.mb-4');
+            if (btnArea) {
+                btnArea.innerHTML = `
+                    <button onclick="window.toggleRecordReadStatus('${recordId}', true); event.stopPropagation();" 
+                    class="px-5 py-1.5 rounded-full font-black text-[10px] transition-all border shadow-sm flex items-center gap-2 bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white">
+                        <i class="fa-solid fa-envelope"></i>
+                        <span>未読に戻す</span>
+                    </button>`;
+            }
+            
+            // 自分自身のキャッシュを削除して次回以降の表示を更新
+            sessionStorage.removeItem(`cp_history_cache_v2_${clean(customerName)}`);
+        } catch (e) { console.error("既読更新エラー:", e); }
+    }
+};
 
         // 🌟 追加：未読に戻すロジック（arrayRemove を使用）
         window.toggleRecordReadStatus = async (recordId, currentStatus) => {
