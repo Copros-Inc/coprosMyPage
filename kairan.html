@@ -172,9 +172,16 @@
                             const chunk = targetIds.slice(i, i + 30);
                             const qId = query(collection(db, "activity_records"), where("__name__", "in", chunk));
                             const idSnap = await getDocs(qId);
-                            idSnap.forEach(rd => { recordDataMap[rd.id] = { recordId: rd.id, ...rd.data() }; });
-                        }
-                    }
+                            // --- 175行目を以下に差し替え ---
+                            idSnap.forEach(rd => { 
+                                const data = rd.data();
+                                // IDそのものをキーにして保存（これで新データが確実に紐付く）
+                                recordDataMap[rd.id] = { recordId: rd.id, ...data }; 
+                                // 名前と日付をキーにして保存（旧データとの互換性用）
+                                const dateKey = (data.visitDate || "").replace(/[-/]/g, '');
+                                const legacyKey = `${clean(data.customerName)}_${dateKey}`;
+                                recordDataMap[legacyKey] = { recordId: rd.id, ...data };
+                            });
 
                     // 🌟 3. 名前で推測取得（旧データ用：これまで通り）
                     if (legacyCustNames.length > 0) {
@@ -460,16 +467,13 @@ window.postComment = async (recordId, customerName, index, noticeId, visitDate) 
             comments: arrayUnion({ sender, receiver: receiverRaw, text, date: dateStr }) 
         });
 
-        // 2. 通知の作成（Readを一切行わない Upsert方式）
+        const batch = writeBatch(db);
         const targetRecipients = receiverRaw.split(', ').map(n => n.trim());
         
-        const batch = writeBatch(db);
         for (const recipient of targetRecipients) {
-            // 🌟 予知解決：IDを「受信者_顧客名_日付」で固定する
-            // これにより getDocs で探す必要がなくなり、Read数が激減し、かつ重複もしない
-            const cleanDate = (visitDate || "").replace(/[-/]/g, ''); // 🌟 追加
-const customNotiId = `noti_${clean(recipient)}_${clean(customerName)}_${cleanDate}`;
-const notiRef = doc(db, "notifications", customNotiId); // 🌟追加
+            // ★ 修正：通知IDに実績ID(recordId)を混ぜて上書き・取り違えを防止
+            const customNotiId = `noti_${clean(recipient)}_${recordId}_cmt`;
+            const notiRef = doc(db, "notifications", customNotiId);
             
             batch.set(notiRef, {
                 recipient: recipient,
@@ -477,9 +481,11 @@ const notiRef = doc(db, "notifications", customNotiId); // 🌟追加
                 customerName: customerName,
                 visitDate: visitDate, 
                 type: "コメント入電",
+                commentText: text, // ★ 本文を埋め込み
+                recordId: recordId, // ★ 実績IDを紐付け
                 isRead: false,
                 createdAt: serverTimestamp()
-            }, { merge: true }); // merge: true で既存のフィールドを維持しつつ更新
+            }, { merge: true });
         }
         await batch.commit();
         
@@ -487,10 +493,7 @@ const notiRef = doc(db, "notifications", customNotiId); // 🌟追加
         alert("コメントを送信しました");
         sessionStorage.setItem('cp_last_opened_kairan', noticeId);
         location.reload(); 
-    } catch (e) { 
-        console.error(e);
-        alert("送信エラー: " + e.message); 
-    }
+    } catch (e) { console.error(e); alert("送信エラー: " + e.message); }
 };
 
 window.deleteComment = async (recordId, commentIdx, noticeId) => {
