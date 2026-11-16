@@ -285,43 +285,40 @@ window.executeSearch = async (kana = 'all', append = false) => {
         constraints.push(limit(50));
         
         const q = query(ref, ...constraints);
-        const snap = await getDocs(q);
-        
-        if (snap.empty && !append) {
-            tbody.innerHTML = `<tr><td colspan="10" class="p-20 text-center text-slate-300 font-black">対象のお客様は見つかりませんでした</td></tr>`;
-            document.getElementById('totalDisplay').innerText = 0;
-            return;
-        }
+/* snap 取得直後の処理を以下に差し替え */
+const snap = await getDocs(q);
 
-        lastVisible = snap.docs[snap.docs.length - 1];
-        const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        allCustomers = append ? [...allCustomers, ...newDocs] : newDocs;
+// 🌟 今回の取得分の「最後のドキュメント」を正確に保存（これで次へ進める）
+if (snap.docs.length > 0) {
+    lastVisible = snap.docs[snap.docs.length - 1];
+}
 
-        // 🌟 4. 重複排除（同じIDのデータが混じらないようにする）
-        const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
+const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // 🌟 修正：条件によって並び順を変える
-        uniqueCustomers.sort((a, b) => {
-            if (currentKana === 'all' && !name && !addr) {
-                // 「全件」の時は最終訪問日の新しい順
-                const dateA = (!a.lastVisitDate || a.lastVisitDate === "未訪問") ? "0000/00/00" : a.lastVisitDate;
-                const dateB = (!b.lastVisitDate || b.lastVisitDate === "未訪問") ? "0000/00/00" : b.lastVisitDate;
-                return dateB.localeCompare(dateA);
-            } else {
-                // 「かな検索」「名前検索」などの時は五十音順
-                return (a.kana || "").localeCompare(b.kana || "");
-            }
-        });
+// 重複排除をしつつ、新しいデータを追加
+allCustomers = append ? [...allCustomers, ...newDocs] : newDocs;
+const uniqueCustomers = Array.from(new Map(allCustomers.map(c => [c.id, c])).values());
 
-        renderTable(uniqueCustomers);
-        const moreBtn = document.getElementById('moreBtn');
-        // 🌟 修正：今回取得した件数が 50件「ぴったり」の時だけボタンを出す
-        // 50件未満（例: 12件など）なら、もう次はないと判断して隠す
-        if (snap.docs.length === 50) {
-            moreBtn.classList.remove('hidden');
-        } else {
-            moreBtn.classList.add('hidden');
-        }
+// 🌟 並び替え：検索中（kana/name/addr）は五十音順、全件の時は最終訪問日順
+uniqueCustomers.sort((a, b) => {
+    if (currentKana === 'all' && !name && !addr) {
+        const dateA = (!a.lastVisitDate || a.lastVisitDate === "未訪問") ? "0000/00/00" : a.lastVisitDate;
+        const dateB = (!b.lastVisitDate || b.lastVisitDate === "未訪問") ? "0000/00/00" : b.lastVisitDate;
+        return dateB.localeCompare(dateA);
+    } else {
+        return (a.kana || "").localeCompare(b.kana || "");
+    }
+});
+
+renderTable(uniqueCustomers);
+
+// 🌟 ボタン制御：50件「以上」取れたら次があると判断
+const moreBtn = document.getElementById('moreBtn');
+if (snap.docs.length >= 50) {
+    moreBtn.classList.remove('hidden');
+} else {
+    moreBtn.classList.add('hidden');
+}
 
     } catch (e) {
         console.error(e);
