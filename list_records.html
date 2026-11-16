@@ -169,14 +169,17 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, TARGET_DEPTS, getDisplayDept } from "./common.js";
-        import { collection, getDocs, query, limit, doc, writeBatch, where, orderBy, startAfter }
-            from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { TARGET_DEPTS, getDisplayDept } from "./common.js";
+import { getFirestore, collection, getDocs, query, limit, doc, writeBatch, where, orderBy, startAfter } 
+from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+const db = getFirestore(); // ★ これを追加
         let allRecords  = [];
         let lastVisible = null; 
         let isSearching = false; 
         let currentDisplayDate = new Date(); 
+
+        const clean = (s) => (s || "").toString().replace(/[\s\u3000]+/g, '').trim();
 
         function normalizeDate(str) {
             if (!str) return "0000-00-00";
