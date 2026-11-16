@@ -182,6 +182,8 @@
                                 const legacyKey = `${clean(data.customerName)}_${dateKey}`;
                                 recordDataMap[legacyKey] = { recordId: rd.id, ...data };
                             });
+                        } // ★ 171行目の for ループを閉じる
+                    }     // ★ 170行目の if 文を閉じる
 
                     // 🌟 3. 名前で推測取得（旧データ用：これまで通り）
                     if (legacyCustNames.length > 0) {
