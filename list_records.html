@@ -338,7 +338,7 @@ window.updateView = () => {
             const tbody = document.getElementById('recordTable');
             const myNameClean = clean(sessionStorage.getItem('userName'));
 
-            if (dataList.length === 0) {
+            if (!dataList || dataList.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-20 text-center text-slate-300 font-bold uppercase tracking-widest">該当する実績はありません</td></tr>`;
                 document.getElementById('totalDisplay').innerText = 0;
                 return;
