@@ -352,8 +352,11 @@ watchNotifications((allUnreadList) => {
                         );
                         const hasUnreadNoti = noticesForThisEvent?.some(n => !n.isRead);
 
-                        // 🌟 未読判定：自分が未読、または未読の通知がある場合
-                        const isUnread = !isReadInRecord || hasUnreadNoti;
+// 🌟 修正：localStorage の既読IDリストを取得
+const localReads = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+
+// 🌟 修正：Firestoreの既読状態に加えて、localStorageもチェックする
+const isUnread = (!isReadInRecord || hasUnreadNoti) && !localReads.includes(r.id);
 
                         // 「未読のみ」チェックが入っている時に既読なら表示しない
                         if (showUnread && !isUnread) return;
