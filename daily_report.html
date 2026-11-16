@@ -374,6 +374,7 @@ window.toggleAcc = async (id, visitorName, customerName, date, recordId) => {
         // ★ 爆速既読：新ID体系に合わせてキャッシュから引き算
         const customNotiId = `noti_${clean(myName)}_${recordId}`;
         updateBadgeLocally(customNotiId, 'read'); 
+        updateBadgeLocally(customNotiId + '_cmt', 'read');
 
         // サーバー側の更新（通知と実績の両方を既読に）
         window.toggleReadStatus(visitorName, customerName, date, false, true, id, recordId); 
