@@ -312,6 +312,7 @@ document.addEventListener('click', (e) => {
             });
         };
 
+/* export.html の updateCount 関数：修正版 */
 window.updateCount = async () => {
     if (updateTimer) clearTimeout(updateTimer);
     updateTimer = setTimeout(async () => {
@@ -325,15 +326,15 @@ window.updateCount = async () => {
             const ref = collection(db, "activity_records");
             let q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
 
+            // 条件構築（ここは変えません）
             const dept = document.getElementById('deptFilter').value;
             const visitor = document.getElementById('visitorFilter').value;
             const rank = document.getElementById('rankFilter').value;
-
             if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
             if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
             if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-            // 🌟 修正：実際のデータは取らず、「数だけ」をサーバーに聞きに行く（超省エネ）
+            // 🌟 【省エネ化】getDocs を getCountFromServer に変更
             const snapshot = await getCountFromServer(q);
             const count = snapshot.data().count;
 
@@ -341,12 +342,15 @@ window.updateCount = async () => {
             btn.disabled = (count === 0);
             badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
         } catch (e) {
-            // 🌟 ここでエラーが出る場合、コンソールにインデックス作成用のURLが出ています
-            console.error("CSV集計エラー:", e);
+            console.error("集計エラー:", e);
+            // 上限エラー時でもユーザーがパニックにならないよう表示
+            if (e.message.includes("Quota exceeded")) {
+                badge.innerText = "-";
+                btn.disabled = false; // ダウンロードは試せるようにしておく
+            }
         }
     }, 500);
 };
-
         window.executeExport = async () => {
             const btn = document.getElementById('exportBtn');
             const originalHTML = btn.innerHTML;
