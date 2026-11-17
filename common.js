@@ -27,60 +27,68 @@ export async function watchNotifications(callback) {
     const now = Date.now();
     const lastCheck = parseInt(sessionStorage.getItem('cp_last_noti_check') || 0);
 
-    // ★ 修正：データ取得は5分に1回だが、描画（renderStoredBadge）は毎回行う
+    // 🌟 省エネ：5分以内の再表示はキャッシュを優先（Read 0）
     if (now - lastCheck < 300000 && !callback) {
-        renderStoredBadge(); // キャッシュから即座に表示（Read発生ゼロ）
+        renderStoredBadge(); 
         return; 
     }
 
     try {
-        const q = query(collection(db, "notifications"), where("recipient", "==", rawName), where("isRead", "==", false));
-        const snap = await getDocs(q); // ここで初めてサーバー通信（5分に1回）
-        const allUnread = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // 🚀 爆速取得：recipientとisReadで絞り込み
+        const q = query(collection(db, "notifications"), 
+                        where("recipient", "==", rawName), 
+                        where("isRead", "==", false));
+        const snap = await getDocs(q);
+        
+        // 🌟 戻るボタン対策：localStorageにある既読済みIDを除外
+        const readIds = JSON.parse(localStorage.getItem('cp_read_ids') || '[]');
+        const allUnread = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(n => !readIds.includes(n.id)); 
         
         sessionStorage.setItem('cp_unread_cache', JSON.stringify(allUnread));
         sessionStorage.setItem('cp_last_noti_check', now);
 
-        renderBadge(allUnread);
-        if (callback) callback(allUnread);
-    } catch (e) { console.error(e); }
+        renderBadge(allUnread, callback);
+    } catch (e) { console.error("WatchNoti Error:", e); }
 }
 
-// 🌟 保存されているデータからバッジを再描画する（通信しない）
+// 🌟 保存されているデータからバッジを再描画する
 function renderStoredBadge() {
     const cached = sessionStorage.getItem('cp_unread_cache');
     if (cached) renderBadge(JSON.parse(cached));
 }
 
 function renderBadge(allUnread, callback) {
-    const toCircleNum = (n) => {
-        const circles = ["⓪","①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
-        return circles[n] || `(${n})`;
-    };
+    const totalCount = allUnread.length;
     const kairanCount = allUnread.filter(n => n.type !== "コメント入電").length;
     const commentCount = allUnread.filter(n => n.type === "コメント入電").length;
+
     const badge = document.getElementById('unreadBadge');
     if (badge) {
-        if (allUnread.length > 0) {
+        if (totalCount > 0) {
+            const toCircleNum = (n) => ["⓪","①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"][n] || `(${n})`;
             let badgeHtml = (kairanCount > 0 ? `<span class="text-[11px]">${toCircleNum(kairanCount)}</span>` : "") +
                             (commentCount > 0 ? `<span class="ml-1 text-[12px]">💬</span><span class="text-[10px]">(${commentCount})</span>` : "");
             badge.innerHTML = badgeHtml;
             badge.style.display = 'flex';
         } else {
- badge.style.display = 'none';
+            badge.style.display = 'none';
         }
     }
-    // 🌟 callbackがあれば実行し、更新イベントを飛ばす
-    if (callback) callback(allUnread);
-    window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: allUnread.length } }));
+
+    // 🌟 iPhoneホーム画面アイコンのバッジ更新（重要）
     if ('setAppBadge' in navigator) {
-        if (allUnread.length > 0) {
-            navigator.setAppBadge(allUnread.length).catch(() => {});
+        if (totalCount > 0) {
+            navigator.setAppBadge(totalCount).catch(() => {});
         } else {
             navigator.clearAppBadge().catch(() => {});
         }
     }
-} 
+
+    if (callback) callback(allUnread);
+    window.dispatchEvent(new CustomEvent('notificationUpdated', { detail: { count: totalCount } }));
+}
 
 // 🌟 ローディング演出の統一
 function unifyLoaders() {
@@ -268,42 +276,37 @@ export function updateBadgeLocally(notiId, action = 'read') {
     const cached = sessionStorage.getItem('cp_unread_cache');
     if (cached) {
         let list = JSON.parse(cached);
-        if (action === 'read') list = list.filter(n => n.id !== notiId);
-        else if (!list.find(n => n.id === notiId)) list.push({ id: notiId, isRead: false });
+        if (action === 'read') {
+            list = list.filter(n => n.id !== notiId);
+        } else if (!list.find(n => n.id === notiId)) {
+            list.push({ id: notiId, isRead: false });
+        }
         sessionStorage.setItem('cp_unread_cache', JSON.stringify(list));
-        renderBadge(list);
+        renderBadge(list); // これでiPhoneバッジも連動して更新されます
     }
 
-    // ② カレンダーのキャッシュ（赤い点）も同時に更新
+    // ② カレンダーのキャッシュ（赤い点）も同期
     Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('cp_cal_cache_v_ultimate_')) {
-            const calData = JSON.parse(sessionStorage.getItem(key));
-            if (calData && calData.notifications) {
-                const target = calData.notifications.find(n => n.id === notiId);
-                if (target) {
-                    target.isRead = (action === 'read');
-                    sessionStorage.setItem(key, JSON.stringify(calData));
+        if (key.startsWith('cp_cal_cache_')) {
+            try {
+                const calData = JSON.parse(sessionStorage.getItem(key));
+                if (calData && calData.notifications) {
+                    const target = calData.notifications.find(n => n.id === notiId);
+                    if (target) {
+                        target.isRead = (action === 'read');
+                        sessionStorage.setItem(key, JSON.stringify(calData));
+                    }
                 }
-            }
+            } catch(e) {}
         }
     });
-    if ('setAppBadge' in navigator) {
-        try {
-            const list = JSON.parse(sessionStorage.getItem('cp_unread_cache') || '[]');
-            if (list.length > 0) {
-                navigator.setAppBadge(list.length).catch(() => {});
-            } else {
-                navigator.clearAppBadge().catch(() => {});
-            }
-        } catch (e) {}
-    if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(registration => {
-            console.log('ServiceWorker registered');
-        }).catch(err => {
-            console.log('ServiceWorker registration failed: ', err);
-        });
-    });
 }
-    }
+
+// 🌟 Service Workerの登録（ファイルの一番最後に配置）
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('ServiceWorker registered'))
+            .catch(err => console.log('ServiceWorker failed: ', err));
+    });
 }
