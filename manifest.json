@@ -1,6 +1,6 @@
 {
   "name": "CP My Page",
-  "short_name": "CP営業",
+  "short_name": "CP My Page",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
