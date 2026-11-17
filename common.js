@@ -95,6 +95,9 @@ function unifyLoaders() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (Notification.permission !== 'granted') {
+        Notification.requestPermission();
+    }
     unifyLoaders();
     const hp = document.getElementById('header-placeholder');
     const sp = document.getElementById('sidebar-placeholder');
