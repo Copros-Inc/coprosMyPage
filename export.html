@@ -312,38 +312,40 @@ document.addEventListener('click', (e) => {
             });
         };
 
-        window.updateCount = async () => {
-            if (updateTimer) clearTimeout(updateTimer);
-            updateTimer = setTimeout(async () => {
-                const badge = document.getElementById('matchCount');
-                const btn = document.getElementById('exportBtn');
-                const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-                const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-                if (!start || !end) return;
-                try {
-                    let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
-                    const dept = document.getElementById('deptFilter').value;
-                    const visitor = document.getElementById('visitorFilter').value;
-                    const rank = document.getElementById('rankFilter').value;
-                    const attr = document.getElementById('attrFilter').value;
-                    const searchText = document.getElementById('customerSearch').value.trim();
+window.updateCount = async () => {
+    if (updateTimer) clearTimeout(updateTimer);
+    updateTimer = setTimeout(async () => {
+        const badge = document.getElementById('matchCount');
+        const btn = document.getElementById('exportBtn');
+        const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+        const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+        if (!start || !end) return;
 
-                    if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-                    if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-                    if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+        try {
+            const ref = collection(db, "activity_records");
+            let q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
 
-                    const snap = await getDocs(q);
-                    let docs = snap.docs.map(d => d.data());
-                    if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-                    if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
-                    if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+            const dept = document.getElementById('deptFilter').value;
+            const visitor = document.getElementById('visitorFilter').value;
+            const rank = document.getElementById('rankFilter').value;
 
-                    badge.innerText = docs.length;
-                    btn.disabled = (docs.length === 0);
-                    badge.style.color = docs.length > 0 ? 'var(--copros-navy)' : '#cbd5e1';
-                } catch (e) { console.error(e); }
-            }, 500);
-        };
+            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+
+            // 🌟 修正：実際のデータは取らず、「数だけ」をサーバーに聞きに行く（超省エネ）
+            const snapshot = await getCountFromServer(q);
+            const count = snapshot.data().count;
+
+            badge.innerText = count;
+            btn.disabled = (count === 0);
+            badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+        } catch (e) {
+            // 🌟 ここでエラーが出る場合、コンソールにインデックス作成用のURLが出ています
+            console.error("CSV集計エラー:", e);
+        }
+    }, 500);
+};
 
         window.executeExport = async () => {
             const btn = document.getElementById('exportBtn');
