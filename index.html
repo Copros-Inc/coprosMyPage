@@ -190,6 +190,9 @@ window.addEventListener('load', () => {
                         msg += `\n\n📢 未読の通知が ${count === 50 ? '50件以上' : count + '件'} あります。\n回覧一覧から確認してください。`;
                     }
                     alert(msg);
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        await Notification.requestPermission();
+                    }
                     
                     sessionStorage.setItem('userName', userData.name);
                     sessionStorage.setItem('userDept', userData.dept || '未設定');
