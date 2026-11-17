@@ -312,7 +312,7 @@ document.addEventListener('click', (e) => {
             });
         };
 
-/* export.html の updateCount 関数：修正版 */
+/* --- updateCount: 件数表示（超省エネ版） --- */
 window.updateCount = async () => {
     if (updateTimer) clearTimeout(updateTimer);
     updateTimer = setTimeout(async () => {
@@ -323,84 +323,94 @@ window.updateCount = async () => {
         if (!start || !end) return;
 
         try {
+            // 🌟 インデックスエラーを避けるため、サーバーへの条件は「日付」だけに絞る
             const ref = collection(db, "activity_records");
             let q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
 
-            // 条件構築（ここは変えません）
-            const dept = document.getElementById('deptFilter').value;
-            const visitor = document.getElementById('visitorFilter').value;
-            const rank = document.getElementById('rankFilter').value;
-            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
-
-            // 🌟 【省エネ化】getDocs を getCountFromServer に変更
+            // 🌟 実際のデータは取らず、「数だけ」をサーバーに聞く（Read消費 1回のみ）
             const snapshot = await getCountFromServer(q);
             const count = snapshot.data().count;
 
             badge.innerText = count;
             btn.disabled = (count === 0);
             badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+            
+            // ヒント：実際の件数はダウンロード時に確定することをユーザーに伝える
+            badge.title = "選択期間内の総件数です。フィルタ条件はダウンロード時に適用されます。";
         } catch (e) {
             console.error("集計エラー:", e);
-            // 上限エラー時でもユーザーがパニックにならないよう表示
-            if (e.message.includes("Quota exceeded")) {
-                badge.innerText = "-";
-                btn.disabled = false; // ダウンロードは試せるようにしておく
-            }
+            if (e.message.includes("Quota exceeded")) badge.innerText = "上限到達";
         }
     }, 500);
 };
-        window.executeExport = async () => {
-            const btn = document.getElementById('exportBtn');
-            const originalHTML = btn.innerHTML;
-            const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-            const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-            const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
 
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
-            try {
-                let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
-                const dept = document.getElementById('deptFilter').value;
-                const visitor = document.getElementById('visitorFilter').value;
-                const rank = document.getElementById('rankFilter').value;
-                const attr = document.getElementById('attrFilter').value;
-                const searchText = document.getElementById('customerSearch').value.trim();
+/* --- executeExport: ダウンロード（実データ取得版） --- */
+window.executeExport = async () => {
+    const btn = document.getElementById('exportBtn');
+    const originalHTML = btn.innerHTML;
+    const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+    const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+    const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
 
-                if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-                if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-                if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
 
-                const snap = await getDocs(q);
-                let docs = snap.docs.map(d => d.data());
-                if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-                if (searchText)    docs = docs.filter(d => (d.customerName || "").includes(searchText));
-                if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+    try {
+        // 🌟 ダウンロード時は「日付」だけで一括取得（インデックスエラーを絶対に起こさないため）
+        const ref = collection(db, "activity_records");
+        const q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
+        const snap = await getDocs(q);
+        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-                if (docs.length === 0) { alert("対象データがありません。"); return; }
+        // 🌟 取得したデータを「ブラウザ側」でフィルタリング（ここが確実・安全）
+        const dept = document.getElementById('deptFilter').value;
+        const visitor = document.getElementById('visitorFilter').value;
+        const rank = document.getElementById('rankFilter').value;
+        const attr = document.getElementById('attrFilter').value;
+        const searchText = document.getElementById('customerSearch').value.trim();
 
-                docs.sort((a, b) => {
-                    if (a.visitDate !== b.visitDate) return a.visitDate.localeCompare(b.visitDate);
-                    return (a.customerName || "").localeCompare(b.customerName || "", 'ja');
-                });
+        if (dept !== 'ALL' && dept !== 'OTHER') docs = docs.filter(d => d.visitorDept === dept);
+        if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+        if (visitor !== 'ALL') docs = docs.filter(d => d.visitorName === visitor);
+        if (rank !== 'ALL') docs = docs.filter(d => d.customerRank === rank);
+        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
 
-                const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
-                docs.forEach(data => {
-                    const row = selectedCols.map(c => {
-                        const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
-                        return `"${val}"`;
-                    });
-                    csvRows.push(row.join(","));
-                });
-                const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
-                link.click();
-            } catch (e) { alert("出力に失敗しました。"); } finally { btn.disabled = false; btn.innerHTML = originalHTML; }
-        };
+        if (docs.length === 0) {
+            alert("フィルタ条件に一致する実績がありませんでした。");
+            return;
+        }
 
+        // ソート（日付順 ➔ お客様名順）
+        docs.sort((a, b) => {
+            if (a.visitDate !== b.visitDate) return a.visitDate.localeCompare(b.visitDate);
+            return (a.customerName || "").localeCompare(b.customerName || "", 'ja');
+        });
+
+        // CSV生成ロジック（既存のまま）
+        const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
+        docs.forEach(data => {
+            const row = selectedCols.map(c => {
+                const val = (data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ');
+                return `"${val}"`;
+            });
+            csvRows.push(row.join(","));
+        });
+
+        const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
+        link.click();
+
+    } catch (e) {
+        console.error("CSV出力エラー:", e);
+        alert("エラーが発生しました: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+};
         async function init() {
             await loadAttrOptions();
             const today = new Date();
