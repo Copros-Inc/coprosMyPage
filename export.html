@@ -312,7 +312,6 @@ document.addEventListener('click', (e) => {
             });
         };
 
-/* --- updateCount: 件数表示（超省エネ版） --- */
 window.updateCount = async () => {
     if (updateTimer) clearTimeout(updateTimer);
     updateTimer = setTimeout(async () => {
@@ -323,29 +322,44 @@ window.updateCount = async () => {
         if (!start || !end) return;
 
         try {
-            // 🌟 インデックスエラーを避けるため、サーバーへの条件は「日付」だけに絞る
             const ref = collection(db, "activity_records");
             let q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
-
-            // 🌟 実際のデータは取らず、「数だけ」をサーバーに聞く（Read消費 1回のみ）
+            
             const snapshot = await getCountFromServer(q);
             const count = snapshot.data().count;
 
-            badge.innerText = count;
-            btn.disabled = (count === 0);
-            badge.style.color = count > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+            badge.innerText = count.toLocaleString();
             
-            // ヒント：実際の件数はダウンロード時に確定することをユーザーに伝える
-            badge.title = "選択期間内の総件数です。フィルタ条件はダウンロード時に適用されます。";
-        } catch (e) {
-            console.error("集計エラー:", e);
-            if (e.message.includes("Quota exceeded")) badge.innerText = "上限到達";
-        }
+            // 🌟 省エネガードレール：3,000件を超える場合は警告
+            if (count > 3000) {
+                badge.style.color = '#e11d48'; // 赤色
+                btn.title = "件数が多すぎます。期間を絞ってください。";
+            } else {
+                badge.style.color = 'var(--copros-navy)';
+                btn.title = "";
+            }
+            
+            btn.disabled = (count === 0);
+        } catch (e) { console.error(e); }
     }, 500);
 };
 
-/* --- executeExport: ダウンロード（実データ取得版） --- */
 window.executeExport = async () => {
+    // 🌟 1日合計1万件制限のチェック（省エネ版）
+    const todayStr = new Date().toISOString().split('T')[0];
+    const limitDocRef = doc(db, "system_usage", "csv_export_limit");
+    
+    try {
+        const usageSnap = await getDoc(limitDocRef);
+        const usageData = usageSnap.exists() ? usageSnap.data() : { date: "", count: 0 };
+        
+        let currentTotal = (usageData.date === todayStr) ? usageData.count : 0;
+        const estimatedCount = parseInt(document.getElementById('matchCount').innerText.replace(/,/g, ''));
+
+        if (currentTotal + estimatedCount > 10000) {
+            alert(`🚫 本日の全社出力上限（10,000件）に達するため出力できません。\n現在: ${currentTotal}件 / 残り: ${10000 - currentTotal}件\n\n恐れ入りますが、期間を絞るか明日実行してください。`);
+            return;
+        }
     const btn = document.getElementById('exportBtn');
     const originalHTML = btn.innerHTML;
     const start = document.getElementById('dateStart').value.replace(/-/g, '/');
@@ -402,6 +416,18 @@ window.executeExport = async () => {
         link.href = URL.createObjectURL(blob);
         link.download = `実績データ_${start.replace(/\//g,'')}-${end.replace(/\//g,'')}.csv`;
         link.click();
+
+                // 🌟 成功したら全社の累計出力数を更新（Write 1回）
+        try {
+            const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+            await setDoc(limitDocRef, { 
+                date: todayStr, 
+                count: currentTotal + estimatedCount 
+            }, { merge: true });
+            console.log("全社累計を更新しました:", currentTotal + estimatedCount);
+        } catch (setErr) {
+            console.warn("累計更新に失敗しましたが、CSVは出力されました:", setErr);
+        }
 
     } catch (e) {
         console.error("CSV出力エラー:", e);
