@@ -163,6 +163,12 @@ window.addEventListener('load', () => {
     // ログイン処理
     document.getElementById('loginForm').onsubmit = async (e) => {
         e.preventDefault();
+
+        // 🌟 ここに移動！ボタンを押した瞬間に実行させる
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+
         const btn = document.getElementById('loginBtn');
         const originalHTML = btn.innerHTML;
         btn.disabled = true;
@@ -185,11 +191,7 @@ window.addEventListener('load', () => {
                     const snapNoti = await getDocs(qNoti);
                     const count = snapNoti.size;
 
-                    if ('Notification' in window && Notification.permission === 'default') {
-                        await Notification.requestPermission();
-                    }
-
-                    let msg = `${userData.name}さん、お疲れ様です！`;
+                         let msg = `${userData.name}さん、お疲れ様です！`;
                     if (count > 0) {
                         msg += `\n\n📢 未読の通知が ${count === 50 ? '50件以上' : count + '件'} あります。\n回覧一覧から確認してください。`;
                     }
