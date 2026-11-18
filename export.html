@@ -349,17 +349,23 @@ window.executeExport = async () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const limitDocRef = doc(db, "system_usage", "csv_export_limit");
     
+    let currentTotal = 0;
+    const matchCountElement = document.getElementById('matchCount');
+    const estimatedCount = parseInt(matchCountElement.innerText.replace(/,/g, '')) || 0;
+
     try {
         const usageSnap = await getDoc(limitDocRef);
         const usageData = usageSnap.exists() ? usageSnap.data() : { date: "", count: 0 };
-        
-        let currentTotal = (usageData.date === todayStr) ? usageData.count : 0;
-        const estimatedCount = parseInt(document.getElementById('matchCount').innerText.replace(/,/g, ''));
+        currentTotal = (usageData.date === todayStr) ? usageData.count : 0;
 
         if (currentTotal + estimatedCount > 10000) {
             alert(`🚫 本日の全社出力上限（10,000件）に達するため出力できません。\n現在: ${currentTotal}件 / 残り: ${10000 - currentTotal}件\n\n恐れ入りますが、期間を絞るか明日実行してください。`);
             return;
         }
+    } catch (e) { 
+        console.warn("Limit check skipped:", e); 
+    }
+
     const btn = document.getElementById('exportBtn');
     const originalHTML = btn.innerHTML;
     const start = document.getElementById('dateStart').value.replace(/-/g, '/');
