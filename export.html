@@ -235,11 +235,7 @@ async function loadAttrOptions() {
         // 状態管理
         let searchDebounceTimer = null; 
         let updateTimer = null;
-
-        // 🌟 ここから追加：メモリ保存とロック用の変数
-       let cachedRecords = [];    // 期間内のデータを保持（Read 0検索用）
-       let currentPeriodKey = ""; // キャッシュ期間の判定用
-       let isLocked = false;      // 1万件上限によるロックフラグ
+        let isLocked = false;      // 1万件上限によるロックフラグ
 
         // 🌟 ここに挿入：UIロック関数
 function lockUI() {
@@ -340,98 +336,86 @@ document.addEventListener('click', (e) => {
 window.updateCount = async () => {
     if (isLocked) return;
     if (updateTimer) clearTimeout(updateTimer);
-    
     updateTimer = setTimeout(async () => {
+        const badge = document.getElementById('matchCount');
         const start = document.getElementById('dateStart').value.replace(/-/g, '/');
         const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
         if (!start || !end) return;
 
-        const periodKey = `${start}-${end}`;
-        const badge = document.getElementById('matchCount');
-        const btn = document.getElementById('exportBtn');
-
-        if (currentPeriodKey === periodKey) {
-            applyLocalFilter();
-            return;
-        }
-
         try {
-            badge.innerText = "..."; 
-            const todayStr = new Date().toISOString().split('T')[0];
-            const limitDocRef = doc(db, "system_usage", "csv_export_limit");
-            const usageSnap = await getDoc(limitDocRef);
-            const usageData = usageSnap.exists() ? usageSnap.data() : { date: "", count: 0 };
-            const currentTotal = (usageData.date === todayStr) ? usageData.count : 0;
+            badge.innerText = "...";
+            const dept = document.getElementById('deptFilter').value;
+            const visitor = document.getElementById('visitorFilter').value;
+            const rank = document.getElementById('rankFilter').value;
 
-            if (currentTotal >= 10000) { lockUI(); return; }
+            // 日付・部署・人・ランクでクエリを作成
+            let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
 
-            const q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+            // 🌟 どんな条件でもサーバーには「数」だけ聞く（Read 1消費）
             const snapCount = await getCountFromServer(q);
-            const countToRead = snapCount.data().count;
+            badge.innerText = snapCount.data().count.toLocaleString();
+            document.getElementById('exportBtn').disabled = (snapCount.data().count === 0);
 
-            if (countToRead > 3000) {
-                alert("3,000件を超えています。期間を絞ってください。");
-                badge.innerText = countToRead;
-                return;
-            }
-
-            const snap = await getDocs(q);
-            cachedRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            currentPeriodKey = periodKey;
-
-            const newTotal = currentTotal + countToRead;
-            await setDoc(limitDocRef, { date: todayStr, count: newTotal }, { merge: true });
-
-            if (newTotal >= 10000) { lockUI(); }
-            applyLocalFilter();
-
-        } catch (e) { console.error("Update error:", e); }
+        } catch (e) { console.error(e); badge.innerText = "Error"; }
     }, 500);
 };
 
 window.executeExport = async () => {
     if (isLocked) return;
     const btn = document.getElementById('exportBtn');
-    const originalHTML = btn.innerHTML;
+    const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+    const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+    const todayStr = new Date().toISOString().split('T')[0];
+
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>チェック中...';
 
     try {
-        let docs = [...cachedRecords];
-        const dept = document.getElementById('deptFilter').value;
-        const visitor = document.getElementById('visitorFilter').value;
-        const rank = document.getElementById('rankFilter').value;
-        const attr = document.getElementById('attrFilter').value;
-        const searchText = document.getElementById('customerSearch').value.trim();
+        // 🌟 1. 上限チェック（Read 1）
+        const limitDocRef = doc(db, "system_usage", "csv_export_limit");
+        const usageSnap = await getDoc(limitDocRef);
+        const currentTotal = (usageSnap.exists() && usageSnap.data().date === todayStr) ? usageSnap.data().count : 0;
+        const estimatedCount = parseInt(document.getElementById('matchCount').innerText.replace(/,/g, ''));
 
-        if (dept !== 'ALL' && dept !== 'OTHER') docs = docs.filter(d => d.visitorDept === dept);
-        if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
-        if (visitor !== 'ALL') docs = docs.filter(d => d.visitorName === visitor);
-        if (rank !== 'ALL') docs = docs.filter(d => d.customerRank === rank);
-        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+        if (currentTotal + estimatedCount > 10000) {
+            alert("本日の上限に達しました。明日またご利用ください。");
+            isLocked = true; // 画面をロック
+            return;
+        }
+
+        // 🌟 2. ここで初めて実データを取得（Read消費！）
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
+        const q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+        const snap = await getDocs(q);
+        let docs = snap.docs.map(d => d.data());
+
+        // 社名検索（手元でフィルタ）
+        const searchText = document.getElementById('customerSearch').value.trim();
         if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
 
-        if (docs.length === 0) { alert("出力対象がありません。"); return; }
+        if (docs.length === 0) { alert("対象が0件です"); return; }
 
-        docs.sort((a, b) => a.visitDate.localeCompare(b.visitDate) || (a.customerName || "").localeCompare(b.customerName || "", 'ja'));
+        // 🌟 3. 読み込んだ件数をリミットに記録（Write 1）
+        await setDoc(limitDocRef, { date: todayStr, count: currentTotal + docs.length }, { merge: true });
 
+        // --- 4. CSV作成とダウンロード（既存のロジック） ---
         const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
         const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
         docs.forEach(data => {
             const row = selectedCols.map(c => `"${(data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ')}"`);
             csvRows.push(row.join(","));
         });
-
         const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `実績データ_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `実績データ_${todayStr}.csv`;
         link.click();
-    } catch (e) {
-        alert("エラー: " + e.message);
-    } finally {
-        if (!isLocked) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down text-2xl"></i><span>CSVファイルをダウンロード</span>'; }
-    }
+
+    } catch (e) { alert("エラー: " + e.message); }
+    finally { if(!isLocked) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down text-2xl"></i><span>CSVファイルをダウンロード</span>'; } }
 };
         async function init() {
             await loadAttrOptions();
