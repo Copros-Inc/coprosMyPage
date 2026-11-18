@@ -236,7 +236,32 @@ async function loadAttrOptions() {
         let searchDebounceTimer = null; 
         let updateTimer = null;
 
-        function setupCustomerSearch() {
+        // 🌟 ここから追加：メモリ保存とロック用の変数
+       let cachedRecords = [];    // 期間内のデータを保持（Read 0検索用）
+       let currentPeriodKey = ""; // キャッシュ期間の判定用
+       let isLocked = false;      // 1万件上限によるロックフラグ
+
+        // 🌟 ここに挿入：UIロック関数
+function lockUI() {
+    isLocked = true;
+    const badge = document.getElementById('matchCount');
+    const btn = document.getElementById('exportBtn');
+    
+    badge.innerText = "上限到達";
+    badge.style.color = "#e11d48";
+    btn.innerHTML = '<i class="fa-solid fa-lock mr-2"></i>本日の上限に達しました';
+    btn.disabled = true;
+    btn.style.backgroundColor = "#94a3b8";
+
+    const info = document.createElement('p');
+    info.className = "text-[10px] font-black text-rose-500 mt-2 text-center animate-pulse";
+    info.innerHTML = "🚫 全社の1日出力上限に達したため、本日の利用を停止しています。<br>明日の朝、自動的にリセットされます。";
+    btn.parentNode.appendChild(info);
+
+    document.querySelectorAll('.form-input, .quick-btn, input').forEach(el => el.disabled = true);
+}
+
+      function setupCustomerSearch() {
             const input = document.getElementById('customerSearch');
             const box = document.getElementById('customerSuggestions');
             if (!input || !box) return;
@@ -313,37 +338,72 @@ document.addEventListener('click', (e) => {
         };
 
 window.updateCount = async () => {
+    if (isLocked) return;
     if (updateTimer) clearTimeout(updateTimer);
     updateTimer = setTimeout(async () => {
-        const badge = document.getElementById('matchCount');
-        const btn = document.getElementById('exportBtn');
         const start = document.getElementById('dateStart').value.replace(/-/g, '/');
         const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
         if (!start || !end) return;
 
         try {
-            const ref = collection(db, "activity_records");
-            let q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
-            
-            const snapshot = await getCountFromServer(q);
-            const count = snapshot.data().count;
-
-            badge.innerText = count.toLocaleString();
-            
-            // 🌟 省エネガードレール：3,000件を超える場合は警告
-            if (count > 3000) {
-                badge.style.color = '#e11d48'; // 赤色
-                btn.title = "件数が多すぎます。期間を絞ってください。";
-            } else {
-                badge.style.color = 'var(--copros-navy)';
-                btn.title = "";
+            // 🌟 最初に上限チェック（Read 1）
+            const todayStr = new Date().toISOString().split('T')[0];
+            const usageSnap = await getDoc(doc(db, "system_usage", "csv_export_limit"));
+            if (usageSnap.exists() && usageSnap.data().date === todayStr && usageSnap.data().count >= 10000) {
+                lockUI(); return;
             }
-            
-            btn.disabled = (count === 0);
+
+            // 🌟 期間が変わった時だけFirebaseから取得（Read節約）
+            const periodKey = `${start}-${end}`;
+            if (currentPeriodKey !== periodKey) {
+                const q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+                const snapCount = await getCountFromServer(q);
+                if (snapCount.data().count > 3000) {
+                    alert("3,000件を超えています。期間を1ヶ月以内に絞ってください。");
+                    return;
+                }
+                const snap = await getDocs(q);
+                cachedRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                currentPeriodKey = periodKey;
+            }
+            // 🌟 手元のメモリで正確に絞り込み（Read 0）
+            applyLocalFilter();
         } catch (e) { console.error(e); }
     }, 500);
 };
 
+// 🌟 4. 手元のメモリデータで正確に絞り込む（Read 0）
+function applyLocalFilter() {
+    if (isLocked) return;
+    
+    let docs = [...cachedRecords];
+    const dept = document.getElementById('deptFilter').value;
+    const visitor = document.getElementById('visitorFilter').value;
+    const rank = document.getElementById('rankFilter').value;
+    const attr = document.getElementById('attrFilter').value;
+    const searchText = document.getElementById('customerSearch').value.trim();
+
+    // 手元の配列に対してフィルタをかける（通信なし）
+    if (dept !== 'ALL' && dept !== 'OTHER') docs = docs.filter(d => d.visitorDept === dept);
+    if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+    if (visitor !== 'ALL') docs = docs.filter(d => d.visitorName === visitor);
+    if (rank !== 'ALL') docs = docs.filter(d => d.customerRank === rank);
+    if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+    if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
+
+    const badge = document.getElementById('matchCount');
+    const btn = document.getElementById('exportBtn');
+    
+    badge.innerText = docs.length.toLocaleString();
+    badge.style.color = docs.length > 0 ? 'var(--copros-navy)' : '#cbd5e1';
+    btn.disabled = (docs.length === 0);
+}
+    // 🌟 UIの操作を検知して、リアルタイムに件数を更新する（Read 0）
+['deptFilter', 'visitorFilter', 'rankFilter', 'attrFilter'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyLocalFilter);
+});
+document.getElementById('customerSearch').addEventListener('input', applyLocalFilter);
+        
 window.executeExport = async () => {
     // 🌟 1日合計1万件制限のチェック（省エネ版）
     const todayStr = new Date().toISOString().split('T')[0];
@@ -376,30 +436,28 @@ window.executeExport = async () => {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
 
     try {
-        // 🌟 ダウンロード時は「日付」だけで一括取得（インデックスエラーを絶対に起こさないため）
-        const ref = collection(db, "activity_records");
-        const q = query(ref, where("visitDate", ">=", start), where("visitDate", "<=", end));
-        const snap = await getDocs(q);
-        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // 🌟 既にメモリにあるデータを使用（Read 0！）
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>CSV生成中...';
+            
+            // 手元のデータに現在のフィルタを適用した最終リストを作成
+            let docs = [...cachedRecords];
+            const dept = document.getElementById('deptFilter').value;
+            const visitor = document.getElementById('visitorFilter').value;
+            const rank = document.getElementById('rankFilter').value;
+            const attr = document.getElementById('attrFilter').value;
+            const searchText = document.getElementById('customerSearch').value.trim();
 
-        // 🌟 取得したデータを「ブラウザ側」でフィルタリング（ここが確実・安全）
-        const dept = document.getElementById('deptFilter').value;
-        const visitor = document.getElementById('visitorFilter').value;
-        const rank = document.getElementById('rankFilter').value;
-        const attr = document.getElementById('attrFilter').value;
-        const searchText = document.getElementById('customerSearch').value.trim();
+            if (dept !== 'ALL' && dept !== 'OTHER') docs = docs.filter(d => d.visitorDept === dept);
+            if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
+            if (visitor !== 'ALL') docs = docs.filter(d => d.visitorName === visitor);
+            if (rank !== 'ALL') docs = docs.filter(d => d.customerRank === rank);
+            if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
+            if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
 
-        if (dept !== 'ALL' && dept !== 'OTHER') docs = docs.filter(d => d.visitorDept === dept);
-        if (dept === 'OTHER') docs = docs.filter(d => !["ケコム部","関西支店","関東支店","中部営業所"].includes(d.visitorDept));
-        if (visitor !== 'ALL') docs = docs.filter(d => d.visitorName === visitor);
-        if (rank !== 'ALL') docs = docs.filter(d => d.customerRank === rank);
-        if (attr !== 'ALL') docs = docs.filter(d => d.customerAttr === attr);
-        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
-
-        if (docs.length === 0) {
-            alert("フィルタ条件に一致する実績がありませんでした。");
-            return;
-        }
+            if (docs.length === 0) {
+                alert("出力対象がありません。");
+                return;
+            }
 
         // ソート（日付順 ➔ お客様名順）
         docs.sort((a, b) => {
