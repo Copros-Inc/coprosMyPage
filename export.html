@@ -195,8 +195,8 @@
 
     <script type="module" src="common.js"></script>
     <script type="module">
-        import { db, getDisplayDept } from "./common.js";
-        import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc, limit, setDoc } 
+        import { db } from "./common.js";
+        import { collection, getDocs, query, where, orderBy, getCountFromServer, doc, getDoc, setDoc, serverTimestamp } 
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
        
         const COLUMNS = [
@@ -219,108 +219,153 @@
             { id: "nextVisitDate", label: "次回予定", default: false }
         ];
 
-// マスタ設定から「お客様区分」を読み込む
-async function loadAttrOptions() {
-    try {
-        const snap = await getDoc(doc(db, "master_settings", "qual_options"));
-        const attrSelect = document.getElementById('attrFilter');
-        if (snap.exists() && attrSelect) {
-            const d = snap.data();
-            const options = (d.custSegments || []).map(s => `<option value="${s}">${s}</option>`).join('');
-            attrSelect.innerHTML = `<option value="ALL">すべての属性</option>${options}`;
-        }
-    } catch (e) { console.error("マスタ読み込み失敗:", e); }
-}
-
-        // 状態管理
-        let searchDebounceTimer = null; 
         let updateTimer = null;
-        let isLocked = false;      // 1万件上限によるロックフラグ
+        let isExportLocked = false;
 
-        // 🌟 ここに挿入：UIロック関数
-function lockUI() {
-    isLocked = true;
-    const badge = document.getElementById('matchCount');
-    const btn = document.getElementById('exportBtn');
-    
-    badge.innerText = "上限到達";
-    badge.style.color = "#e11d48";
-    btn.innerHTML = '<i class="fa-solid fa-lock mr-2"></i>本日の上限に達しました';
-    btn.disabled = true;
-    btn.style.backgroundColor = "#94a3b8";
+        function getUsageDocId() {
+            const now = new Date();
+            if (now.getHours() < 7) { now.setDate(now.getDate() - 1); }
+            return now.toISOString().split('T')[0];
+        }
 
-    const info = document.createElement('p');
-    info.className = "text-[10px] font-black text-rose-500 mt-2 text-center animate-pulse";
-    info.innerHTML = "🚫 全社の1日出力上限に達したため、本日の利用を停止しています。<br>明日の朝、自動的にリセットされます。";
-    btn.parentNode.appendChild(info);
-
-    document.querySelectorAll('.form-input, .quick-btn, input').forEach(el => el.disabled = true);
-}
-
-      function setupCustomerSearch() {
-            const input = document.getElementById('customerSearch');
-            const box = document.getElementById('customerSuggestions');
-            if (!input || !box) return;
-
-            input.addEventListener('input', () => {
-                if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-                const val = input.value.trim();
-                if (val.length < 1) { 
-                    box.style.display = 'none'; 
-                    window.updateCount(); 
-                    return; 
+        function setExportLock(locked, reason = "") {
+            isExportLocked = locked;
+            const btn = document.getElementById('exportBtn');
+            const infoId = "lock-info-text";
+            let infoEl = document.getElementById(infoId);
+            if (locked) {
+                btn.disabled = true;
+                btn.style.backgroundColor = "#94a3b8";
+                btn.innerHTML = `<i class="fa-solid fa-lock mr-2"></i> ${reason}`;
+                if (!infoEl) {
+                    infoEl = document.createElement('p');
+                    infoEl.id = infoId;
+                    infoEl.className = "text-[11px] font-black text-rose-500 mt-4 text-center leading-relaxed animate-pulse";
+                    btn.parentNode.appendChild(infoEl);
                 }
-
-                searchDebounceTimer = setTimeout(async () => {
-                    try {
-                        const ref = collection(db, "customers");
-                        let q = query(ref, where("name", ">=", val), where("name", "<=", val + "\uf8ff"), limit(50));
-                        let snap = await getDocs(q);
-                        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-                        if (docs.length === 0 && val.length >= 2) {
-                            const q2 = query(ref, limit(100));
-                            const snap2 = await getDocs(q2);
-                            docs = snap2.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => (d.name || "").includes(val));
-                        }
-
-                        if (docs.length === 0) {
-                            box.innerHTML = '<div class="p-4 text-xs text-slate-400">見つかりません。</div>';
-                        } else {
-                box.innerHTML = docs.map(d => `
-                    <div class="suggestion-item" onclick="window.selectCustomerForCSV('${(d.name || "").replace(/'/g, "\\'")}')">
-                        <div class="flex justify-between items-center w-full">
-                            <span class="font-black text-slate-700">${d.name}</span>
-                            <span class="text-[9px] bg-slate-100 px-2 py-0.5 rounded text-slate-400">${d.type || '未設定'}</span>
-                        </div>
-                    </div>`).join('');
+                infoEl.innerHTML = `🚫 本日の全社出力上限（1万件）に達しました。<br>システム保護のため、明日の朝7時まで停止します。`;
+            } else {
+                btn.disabled = false;
+                btn.style.backgroundColor = "#004098";
+                btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down text-2xl"></i><span>CSVファイルをダウンロード</span>`;
+                if (infoEl) infoEl.remove();
             }
-            box.style.display = 'block';
-        } catch (e) { console.error(e); }
-    }, 300);
-});
+        }
 
-window.selectCustomerForCSV = (name) => {
-    input.value = name;
-    box.style.display = 'none';
-    window.updateCount();
-};
+        function buildBaseQuery() {
+            const start = document.getElementById('dateStart').value.replace(/-/g, '/');
+            const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
+            const dept = document.getElementById('deptFilter').value;
+            const visitor = document.getElementById('visitorFilter').value;
+            const rank = document.getElementById('rankFilter').value;
+            const attr = document.getElementById('attrFilter').value;
+            let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
+            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
+            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
+            if (attr !== 'ALL') q = query(q, where("customerAttr", "==", attr));
+            return q;
+        }
 
-document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
-});
-}
+        window.updateCount = async () => {
+            if (updateTimer) clearTimeout(updateTimer);
+            updateTimer = setTimeout(async () => {
+                const badge = document.getElementById('matchCount');
+                try {
+                    badge.innerText = "...";
+                    const q = buildBaseQuery();
+                    const snapCount = await getCountFromServer(q);
+                    const count = snapCount.data().count;
+                    badge.innerText = count.toLocaleString();
+                    if (count === 0) {
+                        document.getElementById('exportBtn').disabled = true;
+                    } else if (!isExportLocked) {
+                        document.getElementById('exportBtn').disabled = false;
+                    }
+                } catch (e) { console.error(e); badge.innerText = "Error"; }
+            }, 700);
+        };
+
+        window.executeExport = async () => {
+            if (isExportLocked) return;
+            const btn = document.getElementById('exportBtn');
+            const docId = getUsageDocId();
+            const estimatedCount = parseInt(document.getElementById('matchCount').innerText.replace(/,/g, '')) || 0;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>上限確認中...';
+            try {
+                const limitRef = doc(db, "system_usage", docId);
+                const usageSnap = await getDoc(limitRef);
+                const currentTotal = usageSnap.exists() ? usageSnap.data().count : 0;
+                if (currentTotal + estimatedCount > 10000) {
+                    alert(`本日の上限を超えます。残枠: ${10000 - currentTotal}件`);
+                    setExportLock(true, "本日は上限到達");
+                    return;
+                }
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>データ取得中...';
+                const snap = await getDocs(buildBaseQuery());
+                let docs = snap.docs.map(d => d.data());
+                const searchText = document.getElementById('customerSearch').value.trim();
+                if (searchText) { docs = docs.filter(d => (d.customerName || "").includes(searchText)); }
+                if (docs.length === 0) { alert("対象データがありません"); return; }
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>件数記録中...';
+                await setDoc(limitRef, { count: currentTotal + docs.length, date: docId, lastUpdate: serverTimestamp() }, { merge: true });
+                const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
+                const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
+                docs.forEach(data => {
+                    const row = selectedCols.map(c => `"${(data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ')}"`);
+                    csvRows.push(row.join(","));
+                });
+                const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `実績データ_${docId}.csv`;
+                link.click();
+            } catch (e) { alert("エラー: " + e.message); }
+            finally { if (!isExportLocked) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down text-2xl"></i><span>CSVファイルをダウンロード</span>'; } }
+        };
+
+        async function init() {
+            try {
+                const docId = getUsageDocId();
+                const snap = await getDoc(doc(db, "system_usage", docId));
+                if (snap.exists() && snap.data().count >= 10000) { setExportLock(true, "本日は上限到達"); }
+            } catch (e) { console.error(e); }
+            try {
+                const snap = await getDoc(doc(db, "master_settings", "qual_options"));
+                const attrSelect = document.getElementById('attrFilter');
+                if (snap.exists() && attrSelect) {
+                    const d = snap.data();
+                    const options = (d.custSegments || []).map(s => `<option value="${s}">${s}</option>`).join('');
+                    attrSelect.innerHTML = `<option value="ALL">すべての属性</option>${options}`;
+                }
+            } catch (e) { console.error(e); }
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
+            const grid = document.getElementById('columnGrid');
+            grid.innerHTML = COLUMNS.map(col => `
+                <label class="checkbox-card ${col.default ? 'active' : ''}">
+                    <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
+                    <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
+                </label>`).join('');
+            try {
+                const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
+                const select = document.getElementById('visitorFilter');
+                snap.forEach(d => { select.insertAdjacentHTML('beforeend', `<option value="${d.data().name}">${d.data().name}</option>`); });
+            } catch(e) { console.error(e); }
+            const searchInput = document.getElementById('customerSearch');
+            searchInput.addEventListener('blur', () => window.updateCount());
+            searchInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') window.updateCount(); });
+            window.updateCount();
+        }
 
         window.setQuickPeriod = (type) => {
             const today = new Date();
             let start, end;
-            if (type === 'thisMonth') {
-                start = new Date(today.getFullYear(), today.getMonth(), 1);
-                end = today;
-            } else if (type === 'lastMonth') {
-                start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                end = new Date(today.getFullYear(), today.getMonth(), 0);
-            }
+            if (type === 'thisMonth') { start = new Date(today.getFullYear(), today.getMonth(), 1); end = today; }
+            else if (type === 'lastMonth') { start = new Date(today.getFullYear(), today.getMonth() - 1, 1); end = new Date(today.getFullYear(), today.getMonth(), 0); }
             document.getElementById('dateStart').value = start.toISOString().split('T')[0];
             document.getElementById('dateEnd').value = end.toISOString().split('T')[0];
             window.updateCount();
@@ -333,117 +378,7 @@ document.addEventListener('click', (e) => {
             });
         };
 
-window.updateCount = async () => {
-    if (isLocked) return;
-    if (updateTimer) clearTimeout(updateTimer);
-    updateTimer = setTimeout(async () => {
-        const badge = document.getElementById('matchCount');
-        const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-        const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-        if (!start || !end) return;
-
-        try {
-            badge.innerText = "...";
-            const dept = document.getElementById('deptFilter').value;
-            const visitor = document.getElementById('visitorFilter').value;
-            const rank = document.getElementById('rankFilter').value;
-
-            // 日付・部署・人・ランクでクエリを作成
-            let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
-            if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
-            if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
-            if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
-
-            // 🌟 どんな条件でもサーバーには「数」だけ聞く（Read 1消費）
-            const snapCount = await getCountFromServer(q);
-            badge.innerText = snapCount.data().count.toLocaleString();
-            document.getElementById('exportBtn').disabled = (snapCount.data().count === 0);
-
-        } catch (e) { console.error(e); badge.innerText = "Error"; }
-    }, 500);
-};
-
-window.executeExport = async () => {
-    if (isLocked) return;
-    const btn = document.getElementById('exportBtn');
-    const start = document.getElementById('dateStart').value.replace(/-/g, '/');
-    const end = document.getElementById('dateEnd').value.replace(/-/g, '/');
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>チェック中...';
-
-    try {
-        // 🌟 1. 上限チェック（Read 1）
-        const limitDocRef = doc(db, "system_usage", "csv_export_limit");
-        const usageSnap = await getDoc(limitDocRef);
-        const currentTotal = (usageSnap.exists() && usageSnap.data().date === todayStr) ? usageSnap.data().count : 0;
-        const estimatedCount = parseInt(document.getElementById('matchCount').innerText.replace(/,/g, ''));
-
-        if (currentTotal + estimatedCount > 10000) {
-            alert("本日の上限に達しました。明日またご利用ください。");
-            isLocked = true; // 画面をロック
-            return;
-        }
-
-        // 🌟 2. ここで初めて実データを取得（Read消費！）
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>生成中...';
-        const q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
-        const snap = await getDocs(q);
-        let docs = snap.docs.map(d => d.data());
-
-        // 社名検索（手元でフィルタ）
-        const searchText = document.getElementById('customerSearch').value.trim();
-        if (searchText) docs = docs.filter(d => (d.customerName || "").includes(searchText));
-
-        if (docs.length === 0) { alert("対象が0件です"); return; }
-
-        // 🌟 3. 読み込んだ件数をリミットに記録（Write 1）
-        await setDoc(limitDocRef, { date: todayStr, count: currentTotal + docs.length }, { merge: true });
-
-        // --- 4. CSV作成とダウンロード（既存のロジック） ---
-        const selectedCols = COLUMNS.filter(c => document.querySelector(`input[value="${c.id}"]`)?.checked);
-        const csvRows = [selectedCols.map(c => `"${c.label}"`).join(",")];
-        docs.forEach(data => {
-            const row = selectedCols.map(c => `"${(data[c.id] || "").toString().replace(/"/g, '""').replace(/\n/g, ' ')}"`);
-            csvRows.push(row.join(","));
-        });
-        const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `実績データ_${todayStr}.csv`;
-        link.click();
-
-    } catch (e) { alert("エラー: " + e.message); }
-    finally { if(!isLocked) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down text-2xl"></i><span>CSVファイルをダウンロード</span>'; } }
-};
-        async function init() {
-            await loadAttrOptions();
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('dateStart').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('dateEnd').value = today.toISOString().split('T')[0];
-            const grid = document.getElementById('columnGrid');
-            grid.innerHTML = COLUMNS.map(col => `
-                <label class="checkbox-card ${col.default ? 'active' : ''}">
-                    <input type="checkbox" value="${col.id}" ${col.default ? 'checked' : ''} onchange="this.parentElement.classList.toggle('active', this.checked)">
-                    <span class="text-[11px] font-black tracking-tighter">${col.label}</span>
-                </label>
-            `).join('');
-            try {
-                const snap = await getDocs(query(collection(db, "staffs"), orderBy("name")));
-                const select = document.getElementById('visitorFilter');
-                snap.forEach(d => {
-                    const name = d.data().name;
-                    select.insertAdjacentHTML('beforeend', `<option value="${name}">${name}</option>`);
-                });
-            } catch(e) { console.error(e); }
-            window.updateCount();
-        }
-
-        init().then(() => {
-            setupCustomerSearch();
-        });
+        init();
     </script>
 </body>
 </html>
