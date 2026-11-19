@@ -259,11 +259,28 @@
             const visitor = document.getElementById('visitorFilter').value;
             const rank = document.getElementById('rankFilter').value;
             const attr = document.getElementById('attrFilter').value;
-            let q = query(collection(db, "activity_records"), where("visitDate", ">=", start), where("visitDate", "<=", end));
+            
+            // 🌟 入力文字から不要な語句を削除して matchKey に合わせる
+            let customer = document.getElementById('customerSearch').value.trim();
+            customer = customer.replace(/株式会社|有限会社|（株）|$$株$$| |　/g, "");
+            let q = query(collection(db, "activity_records"), 
+                where("visitDate", ">=", start), 
+                where("visitDate", "<=", end)
+            );
+
             if (dept !== 'ALL' && dept !== 'OTHER') q = query(q, where("visitorDept", "==", dept));
             if (visitor !== 'ALL') q = query(q, where("visitorName", "==", visitor));
             if (rank !== 'ALL') q = query(q, where("customerRank", "==", rank));
             if (attr !== 'ALL') q = query(q, where("customerAttr", "==", attr));
+            
+            // 🌟 matchKey を使って 1 Read で前方一致検索
+            if (customer) {
+                q = query(q, 
+                    where("matchKey", ">=", customer), 
+                    where("matchKey", "<=", customer + "\uf8ff")
+                );
+            }
+
             return q;
         }
 
