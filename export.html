@@ -150,11 +150,14 @@
     </div>
     <div class="md:col-span-2">
         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">お客様名（企業名）で絞り込み</label>
-        <div class="relative">
-            <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
-            <input type="text" id="customerSearch" class="form-input pl-11" placeholder="キーワードを入力..." autocomplete="off">
-            <div id="customerSuggestions" class="suggestion-box"></div>
-        </div>
+<div class="relative">
+    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+    <input type="text" id="customerSearch" class="form-input pl-11" placeholder="キーワードを入力してEnterで件数更新..." autocomplete="off">
+    <p class="text-[10px] font-bold text-slate-400 mt-2 ml-1">
+        <i class="fa-solid fa-circle-info mr-1 text-orange-400"></i>社名の一部（サンテック等）で検索可能。入力後、Enterキーで確定してください。
+    </p>
+    <div id="customerSuggestions" class="suggestion-box"></div>
+</div>
     </div>
 </div>
                 <!-- 2. 出力項目 -->
@@ -262,7 +265,10 @@
             
             // 🌟 入力文字から不要な語句を削除して matchKey に合わせる
             let customer = document.getElementById('customerSearch').value.trim();
-            customer = customer.replace(/株式会社|有限会社|（株）|$$株$$| |　/g, "");
+            // 記号（バックスラッシュ等）を使わない、絶対に化けない書き方に変更
+            ["株式会社", "有限会社", "（株）", "(株)", " ", "　"].forEach(word => {
+                customer = customer.split(word).join("");
+            });
             let q = query(collection(db, "activity_records"), 
                 where("visitDate", ">=", start), 
                 where("visitDate", "<=", end)
